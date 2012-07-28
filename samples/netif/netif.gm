@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+
+TARGETS_LINUX = getgateway-linux_1 getgateway-linux_2 getgateway-linux_3 getgateway-linux_4 \
+		getmac-linux getifaddrs-linux_0 getifaddrs-linux_1 getifaddrs-linux_2 getifaddrs-linux_3 getifaddrs-linux_4 getifaddrs-linux_5 getifaddrs-linux_6 getifaddrs-linux_7 getifaddrs-linux_8 getifaddrs-linux_9 \
+		netdevice-linux_1 \
+		ifmedia-linux_1 ifmedia-linux_2 \
+		ifcross \
+		arp-linux_1 arp-linux_2 arp-linux_3 \
+		ifnetlink-linux_1 ifnetlink-linux_2 ifnetlink-linux-lib1
+
+TARGETS_BSD = getgateway-bsd getifaddrs-bsd ifcross
+
+CC     := gcc
+CFLAGS += -Wall -Wextra
+
+# all: $(TARGETS)
+
+linux: $(TARGETS_LINUX)
+
+bsd: $(TARGETS_BSD)
+
+clean:
+	-rm -f $(TARGETS_LINUX)
+	-rm -f $(TARGETS_BSD)
+
+%: %.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+.PHONY: all linux clean
+

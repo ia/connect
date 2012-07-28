@@ -1,0 +1,172 @@
+#!/usr/bin/make -f
+
+# UNIX platform detection - takes from environment directly
+# e.g., PLATFORM=osx make -f connect.gm
+
+ifeq ($(PLATFORM),osx)
+	LIBD_EXT := dylib
+	LIBS_EXT := A.dylib
+else
+	LIBD_EXT := so
+	LIBS_EXT := a
+endif
+
+ifeq ($(RELEASE),1)
+	CFLAGS   += -DRELEASE
+	LIBS_EXT := A.dylib
+else
+	LIBD_EXT := so
+	LIBS_EXT := a
+endif
+
+### general variables section
+
+AR     := ar
+CFLAGS += -Wall -Wextra -DBUILDREV="`bzr revno`"
+
+LIB_DIR = lib
+SRC_DIR = src
+OUT_DIR = out
+
+OUT_LIB_DIR = $(OUT_DIR)
+OUT_BIN_DIR = $(OUT_DIR)
+
+LIB_NAME    = connect
+
+BIND_EXT = dyn
+BINS_EXT = stat
+
+### library files management section
+
+# library sources
+LIB_SOCKET   = $(LIB_DIR)/socket/tcp.c $(LIB_DIR)/routine.c
+LIB_SOCKET_O = tcp.o routine.o
+
+# binary sources
+BIN_SRC = $(SRC_DIR)/connect_api.c
+
+# binary output for compilation from src/ directory
+BIN = connect_api
+
+# binary output for running after compilcation
+BIN_OUT = $(OUT_DIR)/connect_api
+
+### basic MINGW cross-compilation support section [compiling NT binaries for running on Windows]
+
+NT_CC       = i586-mingw32msvc-gcc
+NT_LD       = i586-mingw32msvc-ld
+NT_AR       = i586-mingw32msvc-ar
+NT_CFLAGS  += -lws2_32 -Wall -Wextra -DBUILDREV="`bzr revno`"
+NT_LFLAGS   = -l$(LIB_NAME)
+
+NT_OUT_DIR      = $(OUT_DIR)/nt
+NT_OUT_LIB_DIR  = $(NT_OUT_DIR)
+NT_OUT_BIN_DIR  = $(NT_OUT_DIR)
+
+### targets section
+
+default: dir build-native-dynamic-lib build-native-dynamic-bin run-native-dynamic
+
+###
+
+all: build run
+
+build: build-native build-cross
+
+run: run-native run-cross
+
+###
+
+run-native: run-native-dynamic run-native-static
+
+build-native: clean dir build-native-dynamic build-native-static
+
+build-native-dynamic: dir build-native-dynamic-lib build-native-dynamic-bin
+
+build-native-static: build-native-static-lib build-native-static-bin
+
+###
+
+run-cross: run-cross-dynamic run-cross-static
+
+build-cross: clean dir build-cross-dynamic build-cross-static
+
+build-cross-dynamic: dir build-cross-dynamic-lib build-cross-dynamic-bin
+
+build-cross-static: build-cross-static-lib build-cross-static-bin
+
+###
+
+dir: clean
+	@echo "\n ----> making target:" $@ "<----\n"
+	mkdir $(OUT_DIR)
+	mkdir $(NT_OUT_DIR)
+
+###
+
+build-native-dynamic-lib: $(LIB_SOCKET)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(CC) $(CFLAGS) $(LDFLAGS) -fPIC -shared $(LIB_SOCKET) -o $(OUT_LIB_DIR)/lib$(LIB_NAME).$(LIBD_EXT)
+
+build-native-dynamic-bin: $(BIN_SRC)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), $(CC) $(CFLAGS) $(LDFLAGS) -L$(OUT_LIB_DIR) $(SRC_DIR)/$(app).c -o $(OUT_DIR)/$(app) -l$(LIB_NAME);)
+
+build-native-static-lib: $(LIB_SOCKET)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(CC) $(CFLAGS) $(LDFLAGS) -c $(LIB_SOCKET)
+	$(AR) -scvq $(OUT_LIB_DIR)/lib$(LIB_NAME).$(LIBS_EXT) $(LIB_SOCKET_O)
+	-rm $(LIB_SOCKET_O)
+
+build-native-static-bin: $(BIN_SRC)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), $(CC) $(CFLAGS) $(LDFLAGS) $(SRC_DIR)/$(app).c $(OUT_LIB_DIR)/lib$(LIB_NAME).$(LIBS_EXT) -o $(OUT_DIR)/$(app)_static;)
+
+build-native-fullstatic-bin: $(BIN_SRC)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), $(CC) $(CFLAGS) $(LDFLAGS) $(SRC_DIR)/$(app).c $(OUT_LIB_DIR)/lib$(LIB_NAME).$(LIBS_EXT) -static -o $(OUT_DIR)/$(app)_fullstatic;)
+
+run-native-dynamic: $(BIN_OUT)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN_OUT), LD_LIBRARY_PATH=$(OUT_LIB_DIR):${LD_LIBRARY_PATH} $(app);)
+
+run-native-static: $(BIN_OUT)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN_OUT), LD_LIBRARY_PATH=$(OUT_LIB_DIR):${LD_LIBRARY_PATH} $(app)_static;)
+
+###
+
+build-cross-dynamic-lib: $(LIB_SOCKET)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(NT_CC) -o $(NT_OUT_LIB_DIR)/$(LIB_NAME).dll -shared $(LIB_SOCKET) $(NT_CFLAGS)
+
+build-cross-static-lib: $(LIB_SOCKET)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(NT_CC) -c $(LIB_SOCKET) $(NT_CFLAGS)
+	$(NT_AR) -scvq $(NT_OUT_LIB_DIR)/$(LIB_NAME)S.lib $(LIB_SOCKET_O)
+	-rm $(LIB_SOCKET_O)
+
+build-cross-dynamic-bin: $(BIN_SRC)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), $(NT_CC) -L$(NT_OUT_LIB_DIR) $(SRC_DIR)/$(app).c -o $(NT_OUT_BIN_DIR)/$(app).exe $(NT_CFLAGS) $(NT_LFLAGS);)
+
+build-cross-static-bin: $(BIN_SRC)
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), $(NT_CC) $(SRC_DIR)/$(app).c $(NT_OUT_LIB_DIR)/$(LIB_NAME)S.lib -o $(NT_OUT_BIN_DIR)/$(app)_static.exe $(NT_CFLAGS);)
+
+run-cross-dynamic: $(NT_OUT_BIN_DIR)/$(BIN).exe
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), wine $(NT_OUT_BIN_DIR)/$(app).exe;)
+
+run-cross-static: $(NT_OUT_BIN_DIR)/$(BIN)_static.exe
+	@echo "\n ----> making target:" $@ "<----\n"
+	$(foreach app, $(BIN), wine $(NT_OUT_BIN_DIR)/$(app)_static.exe;)
+
+###
+
+clean:
+	@echo "\n ----> making target:" $@ "<----\n"
+	-rm -rf $(OUT_DIR)
+
+.PHONY: all
+

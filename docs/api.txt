@@ -1,0 +1,42 @@
+
+ Short `connect' library API reference
+
+cnct_init
+
+struct cnct_socket { host port msg sd }
+cnct_socket_init ( *cnct_socket )
+
+struct cnct_socket_create
+
+cnct_socket_open
+cnct_socket_send
+cnct_socket_sendmsg
+cnct_socket_recvmsg
+cnct_socket_recv
+cnct_socket_close
+
+struct cnct_rawskt { eth_src, eth_dst, eth_type, ... }
+cnct_rawskt_init ( *cnct_rawskt )
+
+cnct_rawskt_send
+cnct_rawskt_recv
+
+void *cnct_packet
+struct cnct_filter {type, rule, cnct_rawskt}
+
+cnct_rawskt_dump ( DUMP_USER DUMP_PCAP DUMP_KERNEL )
+
+struct *ifaces
+cnct_status_ifaces ( ifaces )
+cnct_status_ipv4forward( int ) /* get, set {on, off} */
+cnct_status_promisc ( iface )
+
+cnct_clean
+
+files:
+
+socket.c
+rawskt.c
+packet.c (filter, save)
+status.c
+

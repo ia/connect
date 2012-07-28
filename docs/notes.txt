@@ -1,0 +1,121 @@
+
+TODO:
+-refactoring
+-add tcp/icmp/...
+-library + syntax
+-bsd style
+-demo tool
+-winsock support
+
+new custom data types - as less as possible
+
+http://www.kohala.com/start/unpv12e.html
+
+http://www.lowtek.com/sockets/
+
+http://tangentsoft.net/wskfaq/articles/io-strategies.html
+
+netlink:
+http://www.6test.edu.cn/~lujx/linux_networking/0131777203_ch19lev1sec3.html
+
+http://www.phrack.org/issues.html?issue=61&id=13
+
+http://stackoverflow.com/questions/9752583/i-have-an-issue-with-linuxs-network-stack-while-sniffing-packets
+http://rfc2.ru/3549.rfc
+
+http://softengcrunch.blogspot.com/2010/12/communicating-with-kernel-via-netlink.html
+http://softengcrunch.blogspot.com/2011/01/communicating-with-kernel-via-netlink.html
+
+http://binwaheed.blogspot.com/2010/08/after-reading-kernel-source-i-finally.html
+http://stackoverflow.com/questions/3299386/how-to-use-netlink-socket-to-communicate-with-a-kernel-module
+
+http://gicl.cs.drexel.edu/people/tjkopena/wiki/pmwiki.php?n=SWAT.NetfilterQueueNotes
+
+http://www.auroragrp.com/agi/nfq_sniff.c
+http://www.netfilter.org/projects/libnetfilter_queue/doxygen/files.html
+
+http://habrahabr.ru/post/121254/
+
+http://linux-hacks.blogspot.com/2009/01/sample-code-to-learn-netlink.html
+
+http://www.programmersclub.ru/%D0%A0%D0%B0%D0%B1%D0%BE%D1%82%D0%B0-%D1%81-netlink-%D0%B2-linux-%D0%A7%D0%B0%D1%81%D1%82%D1%8C-1/
+
+http://www.linuxjournal.com/article/8498
+http://stackoverflow.com/questions/579783/how-to-detect-ip-address-change-programmatically-in-linux
+
+http://haifux.org/lectures/219/netLec6.pdf
+
+=======
+netfilter:
+http://www.6test.edu.cn/~lujx/linux_networking/0131777203_ch19lev1sec3.html
+http://www.lainoox.com/netfilter-hook-packet-filter/
+http://www.phrack.org/issues.html?issue=61&id=13
+http://www.paulkiddie.com/2009/11/creating-a-netfilter-kernel-module-which-filters-udp-packets/
+http://fcns.eu/2010/02/15/netfilter-hooks/
+/!\
+http://lxr.free-electrons.com/source/include/linux/skbuff.h#L391
+http://lxr.free-electrons.com/source/include/linux/skbuff.h#L1435
+=======
+
+winsock:
+http://www.sockets.com/winsock.htm
+http://www.binarytides.com/blog/raw-sockets-using-winsock/
+http://www.binarytides.com/blog/packet-sniffer-code-in-c-using-winsock/
+
+bsd:
+http://www.enderunix.org/docs/en/rawipspoof/
+http://bastian.rieck.ru/howtos/bpf/
+https://gist.github.com/939154
+
+http://citrin.ru/freebsd:ng_ipfw_ng_bpf
+http://www.opennet.ru/base/net/ng_bpf_build.txt.html
+
+http://lists.freebsd.org/pipermail/freebsd-hackers/2004-June/007415.html
+
+pcap:
+http://www.tcpdump.org/#documentation
+http://www.tcpdump.org/pcap.htm
+http://yuba.stanford.edu/~casado/pcap/section1.html
+http://homes.di.unimi.it/~gfp/SiRe/2002-03/progetti/libpcap-tutorial.html
+http://www.linuxforu.com/2011/02/capturing-packets-c-program-libpcap/
+
+raw:
+
+http://en.wikipedia.org/wiki/Tcphdr
+
+http://www.binarytides.com/blog/raw-sockets-using-winsock/
+http://sock-raw.org/papers/sock_raw
+http://www.tenouk.com/Module43a.html
+http://www.pdbuchan.com/rawsock/rawsock.html [bsd style]
+http://www.faqs.org/faqs/internet/tcp-ip/raw-ip-faq/
+
+-eth:
+
+http://www.microhowto.info/howto/send_an_arbitrary_ethernet_frame_using_an_af_packet_socket_in_c.html
+http://aschauf.landshut.org/fh/linux/udp_vs_raw/ch01s03.html
+
+--udp:
+
+http://nunix.fr/index.php/programmation/1-c/58-rawsocket-to-forge-udp-packets
+http://minirighi.sourceforge.net/html/udp_8c-source.html
+http://www.enderunix.org/docs/en/rawipspoof/
+
+sudo tcpdump -i lo -nn -XX -vvv -s0 -S -e dst 127.0.0.1
+
+http://www.scs.ryerson.ca/~zereneh/linux/PacketCrafting.pdf
+
+sysctl
+http://linux-helper.googlecode.com/svn-history/r28/trunk/sysctl/network.cpp
+http://www.linux.it/~rubini/docs/sysctl/
+http://stackoverflow.com/questions/8300455/checking-ipv4-ipv6-forwarding-in-c-for-linux-and-freebsd
+
+C:
+
+struct st p = { .o = -1, .v = -1};
+if ((p.i == -1 || p.i == input.i) && (p.v == -1 || p.v == input.v)) {
+
+bpf in linux
+http://www.opennet.ru/base/dev/traffic_analyze.txt.html
+http://www.linuxjournal.com/article/4659
+http://blog.fpmurphy.com/2011/01/spoof-arp-and-icmp-echoreply-using-linux-packet-filter.html
+

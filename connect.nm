@@ -1,0 +1,81 @@
+#!nmake /f
+
+CC  = cl /nologo
+CXX = cl /nologo /TP
+LBD = lib /nologo
+
+CFLAGS = /EHsc
+
+LIB_DIR=lib
+SRC_DIR=src
+
+OUT_DIR=out
+OUT_LIB_DIR=$(OUT_DIR)
+OUT_BIN_DIR=$(OUT_DIR)
+
+DIST_DIR=dist
+
+LIB_NAME=connect
+LIB_CONNECT=$(LIB_DIR)\socket\tcp.c $(LIB_DIR)\routine.c         # add lib source files here
+LIB_CONNECT_O=$(OUT_LIB_DIR)\tcp.obj $(OUT_LIB_DIR)\routine.obj  # add obj binary files here
+
+BIN_SRC=$(SRC_DIR)\connect_api.c          # add bin source files here for input
+BIN=$(SRC_DIR)\connect_api                # add binary files here for output compilation
+BIN_OUT=$(OUT_DIR)\connect_api            # add binary files for running after compilation
+
+all: dir lib-dynamic bin-dynamic run-dynamic
+
+full: dir compile run dist
+
+compile: lib bin
+
+lib: lib-dynamic lib-static
+
+bin: bin-dynamic bin-static
+
+run: run-dynamic run-static
+
+dir: clean
+	MD $(OUT_DIR)
+
+lib-dynamic: dir $(LIB_CONNECT)
+	@echo " LD " $@
+	$(CXX) $(LIB_CONNECT) /EHsc /LD /Fe$(OUT_LIB_DIR)\$(LIB_NAME) /Fo$(OUT_LIB_DIR)\\
+
+lib-static: $(LIB_CONNECT)
+	@echo " LS " $@
+	$(CXX) /c $(LIB_CONNECT) /Fo$(OUT_LIB_DIR)\\
+	$(LBD) $(LIB_CONNECT_O) /OUT:$(OUT_LIB_DIR)\$(LIB_NAME)S.lib
+
+bin-dynamic: lib-dynamic $(BIN_SRC)
+	@echo " CD " $@
+	$(CXX) $(SRC_DIR)\connect_api.c /Fe$(OUT_BIN_DIR)\connect_api.exe /Fo$(OUT_BIN_DIR)\\ /link $(OUT_LIB_DIR)\$(LIB_NAME).lib
+
+bin-static: lib-static $(BIN_SRC)
+	@echo " CS " $@
+	$(CXX) /EHsc $(SRC_DIR)\connect_api.c /Fe$(OUT_BIN_DIR)\connect_api_static.exe /Fo$(OUT_BIN_DIR)\\ /link $(OUT_LIB_DIR)\$(LIB_NAME)S.lib
+
+run-dynamic: lib-dynamic bin-dynamic
+	@echo " RD " $@
+	$(OUT_BIN_DIR)\connect_api.exe
+
+run-static: lib-static bin-static
+	@echo " RS " $@
+	$(OUT_BIN_DIR)\connect_api_static.exe
+
+dist:
+	-RD /Q /S $(DIST_DIR)
+	MD $(DIST_DIR)
+	copy $(OUT_LIB_DIR)\$(LIB_NAME).dll $(DIST_DIR)\\
+	copy $(OUT_LIB_DIR)\$(LIB_NAME).lib $(DIST_DIR)\\
+	copy $(OUT_LIB_DIR)\$(LIB_NAME)S.lib $(DIST_DIR)\\
+
+clean:
+	-del *.obj
+	-del *.exp
+	-del *.lib
+	-RD /Q /S $(OUT_DIR)
+	-RD /Q /S $(DIST_DIR)
+
+.PHONY: all dir lib bin run dist clean
+
