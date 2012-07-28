@@ -66,12 +66,31 @@ int nc_client_tcp(int argc, const char *argv[])
 
 */
 
-int my_server(socket_t sd)
+/* stand alone connect API based sample for socket server */
+
+/* server callback */
+int your_server(socket_t sd)
 {
 	printf("server socket: %d\n", sd);
+	printf("---> place your code here for send/recv <----\n");
+	
 	return 0;
 }
 
+/* server init */
+int demo_server(const char *argv[])
+{
+	printf("starting server:\n");
+	printf("\tport: %s\n", argv[2]);
+	
+	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 1, 0);
+	cnct_socket_server(sckt_server, your_server);
+	cnct_socket_delete(sckt_server);
+	
+	return 0;
+}
+
+/* *** *** *** *** *** *** *** *** *** */
 
 /* stand alone connect API based sample for receiving one message over TCP socket */
 int demo_recvmsg(const char *argv[])
@@ -112,6 +131,7 @@ int usage(const char *name)
 	printf("\t<sample> - type of demo:\n");
 	printf("\t\tsendmsg text host port\n");
 	printf("\t\trecvmsg port\n");
+	printf("\t\tserver  port\n");
 	return 0;
 }
 
@@ -133,61 +153,12 @@ int main(int argc, const char *argv[])
 		demo_sendmsg(argv);
 	} else if ((strcmp(argv[1], "recvmsg") == 0) && (argc == 3)) {
 		demo_recvmsg(argv);
+	} else if ((strcmp(argv[1], "server") == 0) && (argc == 3)) {
+		demo_server(argv);
 	} else {
 		return usage(argv[0]);
 	}
 	
-	/*
-	
-	char *msg = "hello\n\0";
-	char *port = "1234";
-	
-	tcp_sendmsg("::1", port, msg, strlen(msg), 0);
-	tcp_sendmsg("localhost", port, msg, strlen(msg), 0);
-	
-	if (argc > 1) {
-		tcp_sendmsg(argv[1], port, msg, strlen(msg), 0);
-	}
-	*/
-	
-/*
-	char *msgng = "Cool struct api!!1\n\0";
-	cnct_socket_t *socket = cnct_socket_create("localhost", "54321", CNCT_TCP, 0, 1, 0);
-	printf("sending to socket fd: %d\n", socket->sd);
-	cnct_socket_sendmsg(socket, msgng, strlen(msgng));
-	cnct_socket_delete(socket);
-*/
-
-	/*
-	char *msgng2 = "Continue receiving in the same socket! Yayye!!!1\n\0";
-	printf("sending to socket fd: %d\n", socket->sd);
-	cnct_socket_sendmsg(socket, msgng2, strlen(msgng2));
-	printf("sending to socket fd: %d\n", socket->sd);
-	
-	cnct_socket_delete(socket);
-	
-	char *msg_udp = "UDP socket demo\n\0";
-	cnct_socket_t *sckt = cnct_socket_create("localhost", "1234", CNCT_UDP, 0, 1, 0);
-	cnct_socket_sendmsg(socket, msg_udp, strlen(msg_udp));
-	cnct_socket_delete(sckt);
-	
-	*/
-	
-/*
-	char *msg_recv = (char *) malloc(4 * 1024);
-	memset(msg_recv, '\0', 4 * 1024);
-	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, "54321", CNCT_TCP, 0, 1, 0);
-	cnct_socket_recvmsg_(sckt_recv, msg_recv);
-	cnct_socket_delete(sckt_recv);
-*/
-	
-	/*
-	cnct_socket_t *sckt_server = cnct_socket_create(NULL, "1234", CNCT_TCP, 0, 1, 0);
-	cnct_socket_server(sckt_server, my_server);
-	cnct_socket_delete(sckt_server);
-	*/
-
-
 	/* in case of Winsock - WSACleanup routine */
 	cnct_finish();
 	
