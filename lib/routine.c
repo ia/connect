@@ -39,7 +39,7 @@ int get_str_addr(struct addrinfo *node, char *addr)
 	/* clean up buffer */
 	memset(addr, '\0', INET6_ADDRSTRLEN);
 	
-#ifdef UNIXWAY
+#ifdef CNCT_UNIXWARE
 	
 	/* BSD sockets way */
 	
@@ -72,7 +72,7 @@ int get_str_addr(struct addrinfo *node, char *addr)
 		InetNtop(node->ai_family, get_in_addr((struct sockaddr *) node->ai_addr), addr, node->ai_addrlen);
 	#endif /* MINGW */
 	
-#endif /* UNIXWAY */
+#endif /* CNCT_UNIXWARE */
 	
 	LOG_OUT;
 	return 0;
@@ -101,7 +101,7 @@ int cnct_socket_sendall(socket_t sd, char *msg, int len, int flags)
 
 /*** platform related section ***/
 
-#ifdef UNIXWAY
+#ifdef CNCT_UNIXWARE
 	
 	/*** BSD stuff ***/
 	

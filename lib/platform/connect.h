@@ -10,7 +10,7 @@
 	
 	/* BSD sockets API conventions */
 	
-	#define UNIXWAY 1
+	#define CNCT_UNIXWARE 1
 	#define SOCKET_STYLE "BSD"
 	#define socket_t int
 	#define cnct_socket_close(socket_t) close(socket_t)
@@ -20,7 +20,7 @@
 	
 	/* Winsock sockets API conventions */
 	
-	#define CRAPWAY 1
+	#define CNCT_WINSWARE 1
 	#define SOCKET_STYLE "WIN"
 	#define socket_t SOCKET
 	#define cnct_socket_close(socket_t) closesocket(socket_t)
@@ -109,7 +109,7 @@
 
 /* includes */
 
-#ifdef UNIXWAY
+#ifdef CNCT_UNIXWARE
 	#include "api_bsd.h"
 #else
 	#include "api_nt.h"

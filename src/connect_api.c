@@ -5,9 +5,9 @@
 			     */
 
 #include <stdlib.h>
-#ifdef CRAPWAY
+#ifdef CNCT_WINSWARE
 #include <malloc.h>
-#endif /* CRAPWAY */
+#endif /* CNCT_WINSWARE */
 
 #include <stdio.h>
 #include <unistd.h>

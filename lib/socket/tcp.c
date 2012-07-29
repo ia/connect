@@ -1,12 +1,12 @@
 
 #include "tcp.h"
 
-#ifdef CRAPWAY
+#ifdef CNCT_WINSWARE
 
 #include <stdlib.h>
 #include <malloc.h>
 
-#endif /* CRAPWAY */
+#endif /* CNCT_WINSWARE */
 
 cnct_socket_t *cnct_socket_create(char *host, char *port, int type, int reuse, int autoclose, int flags)
 {
@@ -417,7 +417,7 @@ int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 	cnct_socket_close(sd);
 	
 	printf("server: received from client:\n");
-#ifdef UNIXWAY
+#ifdef CNCT_UNIXWARE
 	if ((bytes = recv(fd, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
 	    exit(1);
@@ -437,7 +437,7 @@ int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 	return bytes;
 }
 
-#ifdef CRAPWAY
+#ifdef CNCT_WINSWARE
 
 int cnct_socket_recvmsg_msdn(cnct_socket_t *sckt, char *msg)
 {
@@ -526,7 +526,7 @@ int iResult;
     return 0;
 }
 
-#endif /* CRAPWAY */
+#endif /* CNCT_WINSWARE */
 
 /* *** *** *** *** *** *** *** *** *** *** *** *** */
 /* *** *** *** *** *** *** *** *** *** *** *** *** */
