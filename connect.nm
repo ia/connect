@@ -16,8 +16,8 @@ OUT_BIN_DIR=$(OUT_DIR)
 DIST_DIR=dist
 
 LIB_NAME=connect
-LIB_CONNECT=$(LIB_DIR)\socket\tcp.c $(LIB_DIR)\routine.c         # add lib source files here
-LIB_CONNECT_O=$(OUT_LIB_DIR)\tcp.obj $(OUT_LIB_DIR)\routine.obj  # add obj binary files here
+LIB_CONNECT=$(LIB_DIR)\socket.c $(LIB_DIR)\routine.c         # add lib source files here
+LIB_CONNECT_O=$(OUT_LIB_DIR)\socket.obj $(OUT_LIB_DIR)\routine.obj  # add obj binary files here
 
 BIN_SRC=$(SRC_DIR)\connect_api.c          # add bin source files here for input
 BIN=$(SRC_DIR)\connect_api                # add binary files here for output compilation
