@@ -1,6 +1,8 @@
 
 TODO:
--refactoring
+-cleaning up links
+-fix macros and custom data types (long|short - with/without CNCT_ prefix)
+-refactoring and cleaning up
 -add tcp/icmp/...
 -library + syntax
 -bsd style
@@ -72,6 +74,12 @@ http://www.opennet.ru/base/net/ng_bpf_build.txt.html
 
 http://lists.freebsd.org/pipermail/freebsd-hackers/2004-June/007415.html
 
+http://www.enderunix.org/docs/en/pfil_hook.html
+
+http://www.r4k.net/mod/fbsdfun.html
+http://myfreebsd.homeunix.net/freebsd/bsdkern.html
+
+
 pcap:
 http://www.tcpdump.org/#documentation
 http://www.tcpdump.org/pcap.htm
@@ -108,6 +116,13 @@ sysctl
 http://linux-helper.googlecode.com/svn-history/r28/trunk/sysctl/network.cpp
 http://www.linux.it/~rubini/docs/sysctl/
 http://stackoverflow.com/questions/8300455/checking-ipv4-ipv6-forwarding-in-c-for-linux-and-freebsd
+
+multiplexing:
+
+http://doc.geoffgarside.co.uk/kqueue/
+http://ishbits.googlecode.com/svn/trunk/libevent-examples/echo-server/libevent_echosrv1.c
+libevent
+
 
 C:
 
