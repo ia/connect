@@ -14,7 +14,7 @@
 	#define CNCT_SOCKETS  "BSD"
 	#define socket_t int
 	#define cnct_socket_close(socket_t) close(socket_t)
-	#define EXPORT
+	#define CNCT_EXPORT
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
 	
@@ -24,7 +24,7 @@
 	#define CNCT_SOCKETS  "WIN"
 	#define socket_t SOCKET
 	#define cnct_socket_close(socket_t) closesocket(socket_t)
-	#define EXPORT __declspec(dllexport)
+	#define CNCT_EXPORT __declspec(dllexport)
 	#define __func__ __FUNCTION__
 	
 #else
@@ -104,9 +104,6 @@
 
 /* TODO: CNCT_GETADDRINFO macro */
 
-#define CNCT_SOCKET_INIT(socket) \
-	socket->sd = -1; socket->type = type; socket->flags = flags;
-
 /* includes */
 
 #ifdef CNCT_UNIXWARE
@@ -136,7 +133,7 @@ struct cnct_socket_struct {
 
 typedef struct cnct_socket_struct cnct_socket_t;
 
-#define cnct_socket_init(cnct_socket_t)  cnct_socket_t.sd = -1; cnct_socket_t.host = NULL; cnct_socket_t.port = NULL;
+
 
 #endif /* _PLATFORM_H_ */
 
