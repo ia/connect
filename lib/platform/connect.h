@@ -47,6 +47,8 @@
 		printf(" ==== >>>> %s: %s: %d\n", __FILE__, __func__, __LINE__);
 	#define LOG_OUT \
 		printf(" <<<< ==== %s: %s: %d\n", __FILE__, __func__, __LINE__);
+	#define LOG_OUT_RET(r) \
+		printf(" <<<< ==== %s: %s: %d\n", __FILE__, __func__, __LINE__); return r;
 	#define PRINT_L(value) \
 		printf("\t" #value " = %ld\n", value);
 	#define PRINT_S(value) \
@@ -64,6 +66,7 @@
 	#define DBG_PRINT
 	#define LOG_IN
 	#define LOG_OUT
+	#define LOG_OUT_RET(r) return r;
 	#define PRINT_L
 	#define PRINT_S
 	#define PRINT_D
@@ -111,8 +114,6 @@
 #else
 	#include "api_nt.h"
 #endif
-
-#include "../routine.h"
 
 #define CNCT_TCP SOCK_STREAM
 #define CNCT_UDP SOCK_DGRAM

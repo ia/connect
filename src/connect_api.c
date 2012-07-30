@@ -4,16 +4,13 @@
 			     * `implicit declaration' warning
 			     */
 
+/*
 #include <stdlib.h>
-#ifdef CNCT_WINSWARE
-#include <malloc.h>
-#endif /* CNCT_WINSWARE */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
-
+*/
 #define FDS 2
 
 /*
@@ -141,7 +138,7 @@ int main(int argc, const char *argv[])
 	LOG_IN;
 	
 	/* in case of Winsock - WSAStartup routine required */
-	cnct_init();
+	cnct_start();
 	
 	DBG_INFO(printf("platform: %s\n", CNCT_SOCKETS));
 	

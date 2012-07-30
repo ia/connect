@@ -39,8 +39,8 @@ BINS_EXT = stat
 ### library files management section
 
 # library sources
-LIB_SOCKET   = $(LIB_DIR)/socket.c $(LIB_DIR)/routine.c
-LIB_SOCKET_O = socket.o routine.o
+LIB_SOCKET   = $(LIB_DIR)/socket.c
+LIB_SOCKET_O = socket.o
 
 # binary sources
 BIN_SRC = $(SRC_DIR)/connect_api.c

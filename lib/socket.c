@@ -1,12 +1,163 @@
 
-#include "socket.h"
+#include "connect.h"
+
+int cnct_start()
+{
+    LOG_IN;
 
 #ifdef CNCT_WINSWARE
 
-#include <stdlib.h>
-#include <malloc.h>
+    WORD wVersionRequested;
+    WSADATA wsaData;
+    int err;
+
+    wVersionRequested = MAKEWORD(2, 2);
+
+    err = WSAStartup(wVersionRequested, &wsaData);
+    if (err != 0) {
+        printf("WSAStartup failed with error: %d\n", err);
+        return 1;
+    }
+
+    if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {
+        printf("Could not find a usable version of Winsock.dll\n");
+        WSACleanup();
+        return 1;
+    }
+    else {
+        printf("The Winsock 2.2 dll was found okay\n");
+    }
+
+    //WSACleanup();
+    DBG_ON(printf("on_debug check\n"));
+    printf("build revision: %d\n", BUILDREV);
+    DBG_ON(printf("_WIN32_WINNT: 0x%x\n", _WIN32_WINNT));
 
 #endif /* CNCT_WINSWARE */
+
+    LOG_OUT;
+
+    return 0;
+}
+
+int cnct_finish()
+{
+	LOG_IN;
+	
+#ifdef CNCT_WINSWARE
+	
+	WSACleanup();
+	
+#endif /* CNCT_WINSWARE */
+	
+	LOG_OUT;
+	return 0;
+}
+
+/* get sockaddr : IPv4 or IPv6 */
+void *cnct_socket_getaddr(struct sockaddr *sa)
+{
+	LOG_IN;
+	
+	if (sa->sa_family == AF_INET) {
+		LOG_OUT;
+		return &(((struct sockaddr_in *) sa)->sin_addr);
+	}
+	
+	LOG_OUT;
+	return &(((struct sockaddr_in6 *) sa)->sin6_addr);
+}
+
+/* get sockport : IPv4 or IPv6 */
+unsigned int cnct_socket_getport(struct sockaddr *sa)
+{
+	LOG_IN;
+	
+	if (sa->sa_family == AF_INET) {
+		LOG_OUT;
+		return (((struct sockaddr_in *) sa)->sin_port);
+	}
+	
+	LOG_OUT;
+	
+	return (((struct sockaddr_in6 *) sa)->sin6_port);
+}
+
+/* get address from addrinfo as string in addr */
+int cnct_socket_getstraddr(struct addrinfo *node, char *addr)
+{
+	LOG_IN;
+	
+	/* clean up buffer */
+	memset(addr, '\0', INET6_ADDRSTRLEN);
+	
+#ifdef CNCT_UNIXWARE
+	
+	/* BSD sockets way */
+	
+	inet_ntop(node->ai_family, cnct_socket_getaddr((struct sockaddr *)node->ai_addr), addr, node->ai_addrlen);
+	
+	/*
+	int port_len = 10;
+	char port[port_len];
+	memset(port, '\0', port_len);
+	sprintf(port, ":%u", ntohs(get_in_port((struct sockaddr *)node->ai_addr)));
+	printf("port: %s\n", port);
+	*/
+	
+	/*
+	if (((struct sockaddr *)node->ai_addr)->sa_family == AF_INET) {
+		printf("IPV4\n");
+	} else {
+		printf("IPV6\n");
+	}
+	*/
+	
+#else
+	
+	/* Winsock way */
+	
+	#ifdef MINGW
+		DWORD len = INET6_ADDRSTRLEN;
+		WSAAddressToString((LPSOCKADDR) node->ai_addr, (DWORD) node->ai_addrlen, NULL, addr, &len);
+	#else
+		InetNtop(node->ai_family, cnct_socket_getaddr((struct sockaddr *) node->ai_addr), addr, node->ai_addrlen);
+	#endif /* MINGW */
+	
+#endif /* CNCT_UNIXWARE */
+	
+	LOG_OUT;
+	
+	return 0;
+}
+
+int cnct_socket_setnonblock(socket_t sd)
+{
+	LOG_IN;
+	
+#ifdef CNCT_UNIXWARE
+	
+	int flags, s;
+	
+	flags = fcntl(sd, F_GETFL, 0);
+	if (flags == -1) {
+		perror("fcntl");
+		return -1;
+	}
+	
+	flags |= O_NONBLOCK;
+	s = fcntl(sd, F_SETFL, flags);
+	if (s == -1) {
+		perror("fcntl");
+		return -1;
+	}
+	
+#endif /* CNCT_UNIXWARE */
+	
+	LOG_OUT;
+	
+	return 0;
+}
 
 cnct_socket_t *cnct_socket_create(char *host, char *port, int type, int reuse, int autoclose, int flags)
 {
@@ -103,7 +254,7 @@ socket_t cnct_socket_connect(cnct_socket_t *sckt)
 	memcpy(sckt->node, node, sizeof(struct addrinfo));
 	
 	DBG_ON(char addr[INET6_ADDRSTRLEN]);
-	DBG_ON(get_str_addr(node, addr));
+	DBG_ON(cnct_socket_getstraddr(node, addr));
 	DBG_INFO(printf("connecting to %s\n", addr));
 	
 	// free structure since it's not using anymore
@@ -568,7 +719,7 @@ socket_t tcp_connect(const char *host_id, const char *port, struct addrinfo *hin
 	}
 	
 	DBG_ON(char addr[INET6_ADDRSTRLEN]);
-	DBG_ON(get_str_addr(node, addr));
+	DBG_ON(cnct_socket_getstraddr(node, addr));
 	DBG_INFO(printf("connecting to %s\n", addr));
 	
 	/* free structure since it's not using anymore */
@@ -577,90 +728,5 @@ socket_t tcp_connect(const char *host_id, const char *port, struct addrinfo *hin
 	LOG_OUT;
 	
 	return sd;
-}
-
-int tcp_sendmsg(const char *host_id, const char *port, char *msg, int len, int flags)
-{
-	LOG_IN;
-	
-	/*
-	struct addrinfo *hints;
-	hints = malloc(sizeof(struct addrinfo));
-	memset(hints, 0, sizeof(struct addrinfo));
-	*/
-	
-	MALLOC_TYPE(struct addrinfo, hints);
-	
-	hints->ai_family = AF_UNSPEC;
-	hints->ai_socktype = SOCK_STREAM;
-	
-	socket_t sd = tcp_connect(host_id, port, hints);
-	
-	if (cnct_socket_sendall(sd, msg, len, flags)) {
-		printf("error: can't send all");
-	}
-	
-	DBG_INFO(printf("send to server:[%s]\n", msg));
-	cnct_socket_close(sd);
-	
-	LOG_OUT;
-	return 0;
-}
-
-int tcp_sendmsg_legacy(const char *host_id, const char *port, char *msg, int len, int flags)
-{
-	LOG_IN;
-	
-	struct addrinfo hints, *nodes, *node;
-	int resolv;
-	socket_t sd;
-	
-	/* init routine */
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	
-	if ((resolv = getaddrinfo(host_id, port, &hints, &nodes)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(resolv));
-		return 1;
-	}
-	
-	/* loop through all the results and connect to the first we can */
-	for (node = nodes; node != NULL; node = node->ai_next) {
-		if ((sd = socket(node->ai_family, node->ai_socktype, node->ai_protocol)) == -1) {
-			perror("client: socket");
-			continue;
-		}
-		
-		if (connect(sd, node->ai_addr, node->ai_addrlen) == -1) {
-			cnct_socket_close(sd);
-			perror("client: connect");
-			continue;
-		}
-		
-		break;
-	}
-	
-	if (node == NULL) {
-		fprintf(stderr, "failed to connect\n");
-		return 2;
-	}
-	
-	DBG_ON(char addr[INET6_ADDRSTRLEN]);
-	DBG_ON(get_str_addr(node, addr));
-	DBG_INFO(printf("connecting to %s\n", addr));
-	
-	/* free structure since it's not using anymore */
-	freeaddrinfo(nodes);
-	
-	if (cnct_socket_sendall(sd, msg, len, flags)) {
-		printf("error: can't send all");
-	}
-	
-	DBG_INFO(printf("send to server:[%s]\n", msg));
-	cnct_socket_close(sd);
-	
-	LOG_OUT;
-	return 0;
 }
 
