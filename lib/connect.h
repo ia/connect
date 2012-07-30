@@ -4,6 +4,26 @@
 
 #include "platform/connect.h"
 
+/* *** connect library custom data types *** */
+
+/* socket_t - socket file descriptor data type */
+
+struct cnct_socket_struct {
+	socket_t          sd;
+	char             *host;
+	char             *port;
+	int               type;
+	int               reuse;
+	int               autoclose;
+	int               flags;
+	struct addrinfo  *node;
+	char              addr[INET6_ADDRSTRLEN];
+};
+
+typedef struct cnct_socket_struct cnct_socket_t;
+
+/* *** */
+
 /* *** socket routine headers section *** */
 
 /* TODO: clean up */

@@ -8,7 +8,7 @@
 
 #if ( ( defined(__MINGW32__) ) || ( defined(__MINGW64__) ) )
 	#define _WIN32_WINNT 0x501
-	#define MINGW 1
+	#define  MINGW       1
 #else
 	#pragma comment(lib, "ws2_32.lib")
 #endif

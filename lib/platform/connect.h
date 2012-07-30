@@ -6,6 +6,8 @@
 #define BUILDREV 0
 #endif
 
+/* detect platform for sockets style type */
+
 #if ( defined(__unix__) || ( defined(__APPLE__) && defined(__MACH__) ) )
 	
 	/* BSD sockets API conventions */
@@ -118,23 +120,7 @@
 #define CNCT_TCP SOCK_STREAM
 #define CNCT_UDP SOCK_DGRAM
 
-/* data types */
-
-struct cnct_socket_struct {
-	socket_t          sd;
-	char             *host;
-	char             *port;
-	int               type;
-	int               reuse;
-	int               autoclose;
-	int               flags;
-	struct addrinfo  *node;
-	char              addr[INET6_ADDRSTRLEN];
-};
-
-typedef struct cnct_socket_struct cnct_socket_t;
-
-
+/* *** */
 
 #endif /* _PLATFORM_H_ */
 

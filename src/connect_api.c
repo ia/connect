@@ -1,19 +1,10 @@
 
-#include "../lib/connect.h" /* and nothing else,
-			     * unless you'll see
-			     * `implicit declaration' warning
-			     */
+#include "../lib/connect.h"
+/* and nothing else, unless you'll see `implicit declaration' warning */
 
 /*
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
-*/
+
 #define FDS 2
-
-/*
 
 int recv_data(int s)
 {
