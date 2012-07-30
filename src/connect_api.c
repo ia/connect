@@ -143,7 +143,7 @@ int main(int argc, const char *argv[])
 	/* in case of Winsock - WSAStartup routine required */
 	cnct_init();
 	
-	DBG_INFO(printf("platform: %s\n", SOCKET_STYLE));
+	DBG_INFO(printf("platform: %s\n", CNCT_SOCKETS));
 	
 	if (argc < 2) {
 		return usage(argv[0]);

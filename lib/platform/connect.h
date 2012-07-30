@@ -11,7 +11,7 @@
 	/* BSD sockets API conventions */
 	
 	#define CNCT_UNIXWARE 1
-	#define SOCKET_STYLE "BSD"
+	#define CNCT_SOCKETS  "BSD"
 	#define socket_t int
 	#define cnct_socket_close(socket_t) close(socket_t)
 	#define EXPORT
@@ -21,7 +21,7 @@
 	/* Winsock sockets API conventions */
 	
 	#define CNCT_WINSWARE 1
-	#define SOCKET_STYLE "WIN"
+	#define CNCT_SOCKETS  "WIN"
 	#define socket_t SOCKET
 	#define cnct_socket_close(socket_t) closesocket(socket_t)
 	#define EXPORT __declspec(dllexport)
