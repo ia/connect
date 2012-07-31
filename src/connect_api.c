@@ -83,11 +83,14 @@ int demo_server(const char *argv[])
 /* stand alone connect API based sample for receiving one message over TCP socket */
 int demo_recvmsg(const char *argv[])
 {
+#ifdef CNCT_UNIXWARE
+	printf("CNCT_UNIXWARE\n");
+#endif
 	printf("receiving message:\n");
 	printf("\tport: %s\n", argv[2]);
 	
-	char *msg = (char *) malloc(4 * 1024);
-	memset(msg, '\0', 4 * 1024);
+	char *msg = (char *) malloc(32 * 1024);
+	memset(msg, '\0', 32 * 1024);
 	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 1, 0);
 	cnct_socket_recvmsg_(sckt_recv, msg);
 	cnct_socket_delete(sckt_recv);

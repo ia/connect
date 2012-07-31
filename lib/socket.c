@@ -323,11 +323,14 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 			continue;
 		}
 		
-		//if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(int)) == -1) {
+	#ifdef CNCT_UNIXWARE
+		
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
 			perror("setsockopt");
 			exit(1);
 		}
+		
+	#endif /* CNCT_UNIXWARE */
 		
 		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
 		if (bind(sd, node->ai_addr, node->ai_addrlen) == -1) {
@@ -441,9 +444,12 @@ int cnct_socket_recv(cnct_socket_t *socket, char *msg)
 /* accept - receive - close */
 int cnct_socket_recvmsg(cnct_socket_t *sckt, char *msg)
 {
+	LOG_IN;
+	
 	socket_t sd = cnct_socket_accept(sckt);
 	printf("server: received from client:\n");
 	int bytes;
+	/*
 	if ((bytes = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
 	    exit(1);
@@ -454,12 +460,43 @@ int cnct_socket_recvmsg(cnct_socket_t *sckt, char *msg)
 	cnct_socket_close(sd);
 	
 	printf("Connection closed.\n");
+	*/
+	printf("server: received from client:\n");
+#ifdef CNCT_UNIXWARE
+	if ((bytes = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
+	    perror("recv");
+	    exit(1);
+	}
+#else
+    do {
+	printf("MSG: %s", msg);
+    } while ((bytes = recv(sd, msg, MAXDATASIZE-1, 0)) && bytes != SOCKET_ERROR);
+#endif
+//	msg[bytes] = '\0';
+	printf("MSG2: %s", msg);
+	
+	cnct_socket_close(sd);
+	
+	printf("Connection closed.\n");
+
+
+	LOG_OUT;
 	
 	return bytes;
 }
 
 int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 {
+	LOG_IN;
+	
+#ifdef CNCT_UNIXWARE
+	printf("\nCNCT_UNIXWARE\n");
+#endif
+
+#ifdef CNCT_WINSWARE
+	printf("\nCNCT_WINSWARE\n");
+#endif
+
 	/* sd for listen(), fd for accept() */
 	socket_t sd, fd;
 	/* client's address information */
@@ -488,12 +525,12 @@ int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 			perror("server: socket");
 			continue;
 		}
-	#ifdef CNCT_UNIXWARE
+//	#ifdef CNCT_UNIXWARE
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
 			perror("setsockopt");
-			exit(1);
+//			exit(1);
 		}
-	#endif /* CNCT_UNIXWARE */
+//	#endif /* CNCT_UNIXWARE */
 		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
 		if (bind(sd, node->ai_addr, node->ai_addrlen) == -1) {
 			cnct_socket_close(sd);
@@ -537,19 +574,23 @@ int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 #ifdef CNCT_UNIXWARE
 	if ((bytes = recv(fd, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
-	    exit(1);
 	}
 #else
+
     do {
-	printf("MSG: %s", msg);
+	printf("MSG: %s\n", msg);
     } while ((bytes = recv(fd, msg, MAXDATASIZE-1, 0)) && bytes != SOCKET_ERROR);
+
+    printf("recv() return: %d\n", bytes);
 #endif
 //	msg[bytes] = '\0';
-	printf("MSG2: %s", msg);
+	printf("MSG2: %s\n", msg);
 	
 	cnct_socket_close(fd);
 	
-	printf("Connection closed.\n");
+	printf("\nConnection closed.\n");
+	
+	LOG_OUT;
 	
 	return bytes;
 }
