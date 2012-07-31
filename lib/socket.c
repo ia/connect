@@ -32,7 +32,7 @@ int cnct_start()
 	
 #endif /* CNCT_WINSWARE */
 	
-	DBG_ON(printf("build revision: %d\n", BUILDREV));
+	DBG_ON(printf("build revision: %d\n", CNCT_BUILDREV));
 	
 	LOG_OUT;
 	

@@ -22,7 +22,7 @@ endif
 ### general variables section
 
 AR     := ar
-CFLAGS += -Wall -Wextra -DBUILDREV="`bzr revno`"
+CFLAGS += -Wall -Wextra -DCNCT_BUILDREV="`bzr revno`"
 
 LIB_DIR = lib
 SRC_DIR = src
@@ -56,7 +56,7 @@ BIN_OUT = $(OUT_DIR)/connect_api
 NT_CC       = i586-mingw32msvc-gcc
 NT_LD       = i586-mingw32msvc-ld
 NT_AR       = i586-mingw32msvc-ar
-NT_CFLAGS  += -lws2_32 -Wall -Wextra -DBUILDREV="`bzr revno`"
+NT_CFLAGS  += -lws2_32 -Wall -Wextra -DCNCT_BUILDREV="`bzr revno`"
 NT_LFLAGS   = -l$(LIB_NAME)
 
 NT_OUT_DIR      = $(OUT_DIR)/nt

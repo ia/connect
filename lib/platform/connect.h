@@ -2,8 +2,8 @@
 #ifndef _PLATFORM_H_
 #define _PLATFORM_H_
 
-#ifndef BUILDREV
-#define BUILDREV 0
+#ifndef CNCT_BUILDREV
+#define CNCT_BUILDREV 0
 #endif
 
 /* detect platform for sockets style type */
