@@ -595,3 +595,133 @@ int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 	return bytes;
 }
 
+
+
+
+/*************************************************/
+/*************************************************/
+/*************************************************/
+/*************************************************/
+/*************************************************/
+/*************************************************/
+/*************************************************/
+/*************************************************/
+
+socket_t cnct_socket_listen_ng(cnct_socket_t *sckt)
+{
+	/* sd for listen(), fd for accept() */
+	socket_t sd, fd;
+	/* client's address information */
+	
+	struct addrinfo hints, *nodes, *node;
+	int bytes = 1;
+	int resolv;
+	int on = 1;
+	
+	/* init routine */
+	memset(&hints, 0, sizeof hints);
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_family = AF_INET;
+	hints.ai_flags = AI_PASSIVE;
+	
+	if ((resolv = getaddrinfo(NULL, sckt->port, &hints, &nodes)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(resolv));
+		return 1;
+	}
+	
+	/* loop through all the results and bind to the first we can */
+	for (node = nodes; node != NULL; node = node->ai_next) {
+		if ((sd = socket(node->ai_family, node->ai_socktype, node->ai_protocol)) == -1) {
+			perror("server: socket");
+			continue;
+		}
+//	#ifdef CNCT_UNIXWARE
+		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
+			perror("setsockopt");
+//			exit(1);
+		}
+//	#endif /* CNCT_UNIXWARE */
+		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
+		if (bind(sd, node->ai_addr, node->ai_addrlen) == -1) {
+			cnct_socket_close(sd);
+			perror("server: bind");
+			continue;
+		}
+		
+		break;
+	}
+	
+	if (node == NULL)  {
+		fprintf(stderr, "server: failed to bind\n");
+		return 2;
+	}
+	
+	/* free structure since it's not using anymore */
+	freeaddrinfo(nodes);
+	
+	if (listen(sd, BACKLOG) == -1) {
+		perror("listen");
+		exit(1);
+	}
+	
+	printf("server: waiting for connections...\n");
+	
+	return sd;
+}
+
+socket_t cnct_socket_accept_ng(socket_t ld)
+{
+	struct sockaddr_storage client_addr;
+	socklen_t slen;
+	socket_t ad;
+	
+	slen = sizeof client_addr;
+	ad = accept(ld, (struct sockaddr *)&client_addr, &slen);
+	if (ad == -1) {
+		perror("accept");
+	}
+	
+	//char addr[INET6_ADDRSTRLEN];
+	//inet_ntop(client_addr.ss_family, get_in_addr((struct sockaddr *)&client_addr), addr, sizeof addr);
+	//printf("server: got connection from %s\n", addr);
+	
+	/* close parents' socket for accept() */
+
+	cnct_socket_close(ld);
+	
+	return ad;
+}
+
+int cnct_socket_recvmsg_ng(cnct_socket_t *socket, char *msg)
+{
+	LOG_IN;
+	int bytes;
+	socket_t ad; //ld
+	//ld = cnct_socket_listen_ng(socket);
+	
+	ad = cnct_socket_accept_ng(cnct_socket_listen_ng(socket));
+	
+	printf("server: received from client:\n");
+#ifdef CNCT_UNIXWARE
+	if ((bytes = recv(ad, msg, MAXDATASIZE-1, 0)) == -1) {
+	    perror("recv");
+	}
+#else
+
+    do {
+	printf("MSG: %s\n", msg);
+    } while ((bytes = recv(ad, msg, MAXDATASIZE-1, 0)) && bytes != SOCKET_ERROR);
+
+    printf("recv() return: %d\n", bytes);
+#endif
+//	msg[bytes] = '\0';
+	printf("MSG2: %s\n", msg);
+	
+	cnct_socket_close(ad);
+	
+	printf("\nConnection closed.\n");
+	
+	LOG_OUT;
+	
+	return bytes;
+}

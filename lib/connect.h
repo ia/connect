@@ -49,6 +49,8 @@ CNCT_EXPORT  int             cnct_socket_delete   (cnct_socket_t *socket);
 CNCT_EXPORT  int             cnct_socket_sendmsg  (cnct_socket_t *socket, char *msg, int len);
 CNCT_EXPORT  int             cnct_socket_recvmsg  (cnct_socket_t *socket, char *msg);
 CNCT_EXPORT  int             cnct_socket_recvmsg_ (cnct_socket_t *socket, char *msg);
+/* TODO: cleaning up me! */
+CNCT_EXPORT  int             cnct_socket_recvmsg_ng (cnct_socket_t *socket, char *msg);
 
 CNCT_EXPORT  socket_t        cnct_socket_connect  (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_listen   (cnct_socket_t *socket);
