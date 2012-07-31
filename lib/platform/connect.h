@@ -104,6 +104,9 @@
 #define FREE_PNTR(ptr) \
 	if (ptr) { free(ptr); }
 
+#define IF_NULL(ptr, action) \
+	if (!ptr) { action; }
+
 #define IF_NOT_NULL(ptr, action) \
 	if (ptr) { action; }
 
