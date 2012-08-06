@@ -162,6 +162,30 @@ cnct_socket_t *cnct_socket_create(char *host, char *port, int type, int reuse, i
 	return socket;
 }
 
+/* clone socket struct routine */
+cnct_socket_t *cnct_socket_clone(cnct_socket_t *sckt_src)
+{
+	LOG_IN;
+	
+	MALLOC_TYPE(cnct_socket_t, sckt_dst);
+	
+	IF_NOT_NULL(sckt_src->host, MALLOC_PNTR_SIZE(char, sckt_dst->host, strlen(sckt_src->host)); strcpy(sckt_dst->host, sckt_src->host));
+	IF_NOT_NULL(sckt_src->port, MALLOC_PNTR_SIZE(char, sckt_dst->port, strlen(sckt_src->port)); strcpy(sckt_dst->port, sckt_src->port));
+	
+	IF_NOT_NULL(sckt_src->node, MALLOC_PNTR_TYPE(struct addrinfo, sckt_dst->node); memcpy(sckt_dst->node, sckt_src->node, sizeof(struct addrinfo)));
+	
+	sckt_dst->sd        = sckt_src->sd;
+	sckt_dst->type      = sckt_src->type;
+	sckt_dst->reuse     = sckt_src->reuse;
+	sckt_dst->autoclose = sckt_src->autoclose;
+	sckt_dst->flags     = sckt_src->flags;
+	sckt_dst->node      = NULL;
+	
+	LOG_OUT;
+	
+	return sckt_dst;
+}
+
 /* delete socket struct routine */
 int cnct_socket_delete(cnct_socket_t *socket)
 {
@@ -423,7 +447,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
 }
 
 /* set socket for receive */
-int cnct_socket_recv(cnct_socket_t *socket, char *msg)
+int cnct_socket_recv_(cnct_socket_t *socket, char *msg)
 {
 	int bytes;
 	printf("server: received from client:\n");
@@ -702,6 +726,7 @@ int cnct_socket_recvmsg_ng(cnct_socket_t *socket, char *msg)
 	ad = cnct_socket_accept_ng(cnct_socket_listen_ng(socket));
 	
 	printf("server: received from client:\n");
+/*
 #ifdef CNCT_UNIXWARE
 	if ((bytes = recv(ad, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
@@ -714,10 +739,17 @@ int cnct_socket_recvmsg_ng(cnct_socket_t *socket, char *msg)
 
     printf("recv() return: %d\n", bytes);
 #endif
-//	msg[bytes] = '\0';
+	msg[bytes] = '\0';
 	printf("MSG2: %s\n", msg);
 	
 	cnct_socket_close(ad);
+*/
+	
+	cnct_socket_t *sckt_accept;
+	sckt_accept = cnct_socket_clone(socket);
+	sckt_accept->sd = ad;
+	
+	cnct_socket_recv(sckt_accept, msg);
 	
 	printf("\nConnection closed.\n");
 	
@@ -725,3 +757,23 @@ int cnct_socket_recvmsg_ng(cnct_socket_t *socket, char *msg)
 	
 	return bytes;
 }
+
+/* set socket for receive */
+int cnct_socket_recv(cnct_socket_t *socket, char *msg)
+{
+	int bytes;
+	printf("server: received from client:\n");
+	if ((bytes = recv(socket->sd, msg, MAXDATASIZE-1, 0)) == -1) {
+	    perror("recv");
+	    //exit(1);
+	}
+	msg[bytes] = '\0';
+	printf("%s", msg);
+	
+	cnct_socket_close(socket->sd);
+	
+	printf("Connection closed.\n");
+	
+	return bytes;
+}
+
