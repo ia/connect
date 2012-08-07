@@ -318,217 +318,13 @@ int cnct_socket_sendmsg(cnct_socket_t *socket, char *msg, int len)
 	return 0;
 }
 
-/* set listen socket */
 socket_t cnct_socket_listen(cnct_socket_t *sckt)
 {
 	LOG_IN;
 	
 	socket_t sd;
-	struct addrinfo hints, *nodes, *node;
-	int resolv;
-	int on = 1;
-	
-	/* init routine */
-	memset(&hints, 0, sizeof hints);
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_flags = AI_PASSIVE;
-	
-	if ((resolv = getaddrinfo(NULL, sckt->port, &hints, &nodes)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(resolv));
-		LOG_OUT;
-		return 1;
-	}
-	
-	/* loop through all the results and bind to the first we can */
-	for (node = nodes; node != NULL; node = node->ai_next) {
-		if ((sd = socket(node->ai_family, node->ai_socktype, node->ai_protocol)) == -1) {
-			perror("server: socket");
-			continue;
-		}
-		
-	#ifdef CNCT_UNIXWARE
-		
-		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
-			perror("setsockopt");
-			exit(1);
-		}
-		
-	#endif /* CNCT_UNIXWARE */
-		
-		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
-		if (bind(sd, node->ai_addr, node->ai_addrlen) == -1) {
-			printf("BIND ERROR\n");
-			cnct_socket_close(sd);
-			perror("server: bind");
-			continue;
-		}
-		
-		break;
-	}
-	
-	if (node == NULL)  {
-		fprintf(stderr, "server: failed to bind\n");
-		LOG_OUT;
-		return 2;
-	}
-	
-	/* free structure since it's not using anymore */
-	freeaddrinfo(nodes);
-	
-	if (listen(sd, BACKLOG) == -1) {
-		perror("listen");
-		exit(1);
-	}
-	
-	printf("server: waiting for connections...\n");
-	
-	LOG_OUT;
-	
-	return sd;
-}
-
-/* set socket for accept connection */
-socket_t cnct_socket_accept(cnct_socket_t *socket)
-{
-	LOG_IN;
-	
-	socket_t sd;
-	struct sockaddr_storage client_addr;
-	socklen_t slen;
-	
-	slen = sizeof(client_addr);
-	sd = accept(cnct_socket_listen(socket), (struct sockaddr *) &client_addr, &slen);
-	if (sd == -1) {
-		perror("accept");
-	}
-	
-	//inet_ntop(client_addr.ss_family, get_in_addr((struct sockaddr *)&client_addr), addr, sizeof addr);
-	//printf("server: got connection from %s\n", addr);
-	
-	/* close parents' socket for accept() */
-	
-	cnct_socket_close(socket->sd);
-	
-	printf("server: accept OK\n");
-	/* sd - our soket now */
-	
-	LOG_OUT;
-	
-	return sd;
-}
-
-/* init server for processing accepted connections in callback */
-int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
-{
-	LOG_IN;
-	
-	socket_t sd;
-	struct sockaddr_storage client_addr;
-	socklen_t slen;
-	
-	slen = sizeof(client_addr);
-	sd = accept(cnct_socket_listen(socket), (struct sockaddr *) &client_addr, &slen);
-	if (sd == -1) {
-		perror("accept");
-	}
-	/* ??? cnct_socket_close(socket->sd); */
-	
-	/* fork should be goes here */
-	/*int r =*/ (*callback)(sd);
-	/*
-	if (r == CNCT_SERVER_EXIT) {
-		exit(r);
-	}
-	*/
-	LOG_OUT;
-	
-	return 0;
-}
-
-/* set socket for receive */
-int cnct_socket_recv_(cnct_socket_t *socket, char *msg)
-{
-	int bytes;
-	printf("server: received from client:\n");
-	if ((bytes = recv(socket->sd, msg, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    exit(1);
-	}
-	msg[bytes] = '\0';
-	printf("%s", msg);
-	
-	cnct_socket_close(socket->sd);
-	
-	printf("Connection closed.\n");
-	
-	return bytes;
-}
-
-/* accept - receive - close */
-int cnct_socket_recvmsg(cnct_socket_t *sckt, char *msg)
-{
-	LOG_IN;
-	
-	socket_t sd = cnct_socket_accept(sckt);
-	printf("server: received from client:\n");
-	int bytes;
-	/*
-	if ((bytes = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    exit(1);
-	}
-	msg[bytes] = '\0';
-	printf("%s", msg);
-	
-	cnct_socket_close(sd);
-	
-	printf("Connection closed.\n");
-	*/
-	printf("server: received from client:\n");
-#ifdef CNCT_UNIXWARE
-	if ((bytes = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    exit(1);
-	}
-#else
-    do {
-	printf("MSG: %s", msg);
-    } while ((bytes = recv(sd, msg, MAXDATASIZE-1, 0)) && bytes != SOCKET_ERROR);
-#endif
-//	msg[bytes] = '\0';
-	printf("MSG2: %s", msg);
-	
-	cnct_socket_close(sd);
-	
-	printf("Connection closed.\n");
-
-
-	LOG_OUT;
-	
-	return bytes;
-}
-
-int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
-{
-	LOG_IN;
-	
-#ifdef CNCT_UNIXWARE
-	printf("\nCNCT_UNIXWARE\n");
-#endif
-
-#ifdef CNCT_WINSWARE
-	printf("\nCNCT_WINSWARE\n");
-#endif
-
-	/* sd for listen(), fd for accept() */
-	socket_t sd, fd;
-	/* client's address information */
-	struct sockaddr_storage client_addr;
 	
 	struct addrinfo hints, *nodes, *node;
-	socklen_t slen;
-	int bytes = 1;
 	int resolv;
 	int on = 1;
 	
@@ -580,127 +376,21 @@ int cnct_socket_recvmsg_(cnct_socket_t *sckt, char *msg)
 	
 	printf("server: waiting for connections...\n");
 	
-	slen = sizeof client_addr;
-	fd = accept(sd, (struct sockaddr *)&client_addr, &slen);
-	if (fd == -1) {
-		perror("accept");
-	}
-	
-	//char addr[INET6_ADDRSTRLEN];
-	//inet_ntop(client_addr.ss_family, get_in_addr((struct sockaddr *)&client_addr), addr, sizeof addr);
-	//printf("server: got connection from %s\n", addr);
-	
-	/* close parents' socket for accept() */
-
-	cnct_socket_close(sd);
-	
-	printf("server: received from client:\n");
-#ifdef CNCT_UNIXWARE
-	if ((bytes = recv(fd, msg, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	}
-#else
-
-    do {
-	printf("MSG: %s\n", msg);
-    } while ((bytes = recv(fd, msg, MAXDATASIZE-1, 0)) && bytes != SOCKET_ERROR);
-
-    printf("recv() return: %d\n", bytes);
-#endif
-//	msg[bytes] = '\0';
-	printf("MSG2: %s\n", msg);
-	
-	cnct_socket_close(fd);
-	
-	printf("\nConnection closed.\n");
-	
 	LOG_OUT;
-	
-	return bytes;
-}
-
-
-
-
-/*************************************************/
-/*************************************************/
-/*************************************************/
-/*************************************************/
-/*************************************************/
-/*************************************************/
-/*************************************************/
-/*************************************************/
-
-socket_t cnct_socket_listen_ng(cnct_socket_t *sckt)
-{
-	/* sd for listen(), fd for accept() */
-	socket_t sd, fd;
-	/* client's address information */
-	
-	struct addrinfo hints, *nodes, *node;
-	int bytes = 1;
-	int resolv;
-	int on = 1;
-	
-	/* init routine */
-	memset(&hints, 0, sizeof hints);
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_family = AF_INET;
-	hints.ai_flags = AI_PASSIVE;
-	
-	if ((resolv = getaddrinfo(NULL, sckt->port, &hints, &nodes)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(resolv));
-		return 1;
-	}
-	
-	/* loop through all the results and bind to the first we can */
-	for (node = nodes; node != NULL; node = node->ai_next) {
-		if ((sd = socket(node->ai_family, node->ai_socktype, node->ai_protocol)) == -1) {
-			perror("server: socket");
-			continue;
-		}
-//	#ifdef CNCT_UNIXWARE
-		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
-			perror("setsockopt");
-//			exit(1);
-		}
-//	#endif /* CNCT_UNIXWARE */
-		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
-		if (bind(sd, node->ai_addr, node->ai_addrlen) == -1) {
-			cnct_socket_close(sd);
-			perror("server: bind");
-			continue;
-		}
-		
-		break;
-	}
-	
-	if (node == NULL)  {
-		fprintf(stderr, "server: failed to bind\n");
-		return 2;
-	}
-	
-	/* free structure since it's not using anymore */
-	freeaddrinfo(nodes);
-	
-	if (listen(sd, BACKLOG) == -1) {
-		perror("listen");
-		exit(1);
-	}
-	
-	printf("server: waiting for connections...\n");
 	
 	return sd;
 }
 
-socket_t cnct_socket_accept_ng(socket_t ld)
+socket_t cnct_socket_accept(socket_t ld)
 {
-	struct sockaddr_storage client_addr;
-	socklen_t slen;
+	LOG_IN;
+	
 	socket_t ad;
+	socklen_t slen;
+	struct sockaddr_storage client_addr;
 	
 	slen = sizeof client_addr;
-	ad = accept(ld, (struct sockaddr *)&client_addr, &slen);
+	ad = accept(ld, (struct sockaddr *) &client_addr, &slen);
 	if (ad == -1) {
 		perror("accept");
 	}
@@ -710,70 +400,94 @@ socket_t cnct_socket_accept_ng(socket_t ld)
 	//printf("server: got connection from %s\n", addr);
 	
 	/* close parents' socket for accept() */
-
+	
 	cnct_socket_close(ld);
+	
+	LOG_OUT;
 	
 	return ad;
 }
 
-int cnct_socket_recvmsg_ng(cnct_socket_t *socket, char *msg)
+/* set socket for receive */
+int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg)
 {
 	LOG_IN;
-	int bytes;
-	socket_t ad; //ld
-	//ld = cnct_socket_listen_ng(socket);
 	
-	ad = cnct_socket_accept_ng(cnct_socket_listen_ng(socket));
+	int rx;
 	
-	printf("server: received from client:\n");
-/*
-#ifdef CNCT_UNIXWARE
-	if ((bytes = recv(ad, msg, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	}
-#else
-
-    do {
-	printf("MSG: %s\n", msg);
-    } while ((bytes = recv(ad, msg, MAXDATASIZE-1, 0)) && bytes != SOCKET_ERROR);
-
-    printf("recv() return: %d\n", bytes);
-#endif
-	msg[bytes] = '\0';
-	printf("MSG2: %s\n", msg);
+	//printf("server: received from client:\n");
 	
-	cnct_socket_close(ad);
-*/
-	
-	cnct_socket_t *sckt_accept;
-	sckt_accept = cnct_socket_clone(socket);
-	sckt_accept->sd = ad;
-	
-	cnct_socket_recv(sckt_accept, msg);
-	
-	printf("\nConnection closed.\n");
-	
-	LOG_OUT;
-	
-	return bytes;
-}
-
-/* set socket for receive */
-int cnct_socket_recv(cnct_socket_t *socket, char *msg)
-{
-	int bytes;
-	printf("server: received from client:\n");
-	if ((bytes = recv(socket->sd, msg, MAXDATASIZE-1, 0)) == -1) {
+	if ((rx = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
 	    //exit(1);
 	}
-	msg[bytes] = '\0';
-	printf("%s", msg);
 	
-	cnct_socket_close(socket->sd);
+	//msg[bytes] = '\0';
+	printf("MSG: %s", msg);
 	
-	printf("Connection closed.\n");
+	cnct_socket_close(sd);
 	
-	return bytes;
+	//printf("Connection closed.\n");
+	
+	LOG_OUT;
+	
+	return rx;
+}
+
+int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
+{
+	LOG_IN;
+	
+	int rx;
+	socket_t ad, ld;
+	
+	ld = cnct_socket_listen(socket);
+	ad = cnct_socket_accept(ld);
+	
+	//printf("server: received from client:\n");
+	
+	/*
+	cnct_socket_t *sckt_accept;
+	sckt_accept = cnct_socket_clone(socket);
+	sckt_accept->sd = ad;
+	*/
+	
+	rx = cnct_socket_recv(socket, ad, msg);
+	
+	LOG_OUT;
+	
+	return rx;
+}
+
+/* init server for processing accepted connections in callback */
+int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
+{
+	LOG_IN;
+	
+	socket_t ld, ad;
+	socklen_t slen;
+	struct sockaddr_storage client_addr;
+	
+	slen = sizeof(client_addr);
+	
+	ld = cnct_socket_listen(socket);
+	ad = accept(ld, (struct sockaddr *) &client_addr, &slen);
+	
+	if (ad == -1) {
+		perror("accept");
+	}
+	/* ??? cnct_socket_close(socket->sd); */
+	
+	/* fork should be goes here */
+	/*int r =*/ (*callback)(ad);
+	/*
+	if (r == CNCT_SERVER_EXIT) {
+		exit(r);
+	}
+	*/
+	
+	LOG_OUT;
+	
+	return 0;
 }
 

@@ -36,6 +36,7 @@ CNCT_EXPORT int cnct_start();
 CNCT_EXPORT int cnct_finish();
 
 /* helper routine */
+
 void        *cnct_socket_getaddr     (struct sockaddr *sa);
 unsigned int cnct_socket_getport     (struct sockaddr *sa);
 int          cnct_socket_getstraddr  (struct addrinfo *node, char *addr);
@@ -49,15 +50,13 @@ CNCT_EXPORT  int             cnct_socket_delete   (cnct_socket_t *socket);
 
 CNCT_EXPORT  int             cnct_socket_sendmsg  (cnct_socket_t *socket, char *msg, int len);
 CNCT_EXPORT  int             cnct_socket_recvmsg  (cnct_socket_t *socket, char *msg);
-CNCT_EXPORT  int             cnct_socket_recvmsg_ (cnct_socket_t *socket, char *msg);
-/* TODO: cleaning up me! */
-CNCT_EXPORT  int             cnct_socket_recvmsg_ng (cnct_socket_t *socket, char *msg);
-CNCT_EXPORT  int             cnct_socket_recv       (cnct_socket_t *socket, char *msg);
-CNCT_EXPORT  int             cnct_socket_recv_      (cnct_socket_t *socket, char *msg);
+
+CNCT_EXPORT  int             cnct_socket_send     (cnct_socket_t *socket, char *msg, int len);
+CNCT_EXPORT  int             cnct_socket_recv     (cnct_socket_t *socket, socket_t sd, char *msg);
 
 CNCT_EXPORT  socket_t        cnct_socket_connect  (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_listen   (cnct_socket_t *socket);
-CNCT_EXPORT  socket_t        cnct_socket_accept   (cnct_socket_t *socket);
+CNCT_EXPORT  socket_t        cnct_socket_accept   (socket_t socket);
 
 CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*callback)(socket_t socket));
 

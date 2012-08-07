@@ -92,7 +92,7 @@ int demo_recvmsg(const char *argv[])
 	char *msg = (char *) malloc(32 * 1024);
 	memset(msg, '\0', 32 * 1024);
 	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 1, 0);
-	cnct_socket_recvmsg_ng(sckt_recv, msg);
+	cnct_socket_recvmsg(sckt_recv, msg);
 	cnct_socket_delete(sckt_recv);
 	
 	printf("\tmsg: %s\n", msg);
