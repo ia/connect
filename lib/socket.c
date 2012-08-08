@@ -4,6 +4,7 @@
 /*
  * TODO:
  *
+ *  - wrap server routine in macros/headers/defines/funcs
  *  - add UDP support for listen/accept/recv
  *  - char *msg -> void *data
  *  - len for recv
@@ -499,6 +500,23 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 	return rx;
 }
 
+#ifdef CNCT_WINSWARE
+
+struct thread_data {
+	socket_t sd;
+	int (*cb)(socket_t arg);
+};
+
+DWORD WINAPI cnct_socket_request(void *data)
+{
+	socket_t ad;
+	ad = ((struct thread_data *) data)->sd;
+	(*((struct thread_data *) data)->cb)(ad);
+	return 0;
+}
+
+#endif
+
 /* init server for processing accepted connections in callback */
 int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
 {
@@ -511,20 +529,37 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
 	slen = sizeof(client);
 	
 	ld = cnct_socket_listen(socket);
-	ad = accept(ld, (struct sockaddr *) &client, &slen);
 	
-	if (ad == -1) {
-		perror("accept");
-	}
-	/* ??? cnct_socket_close(socket->sd); */
+	while (1) {
+		ad = accept(ld, (struct sockaddr *) &client, &slen);
+		if (ad == -1) {
+			perror("accept");
+			continue;
+		}
+		
+	#ifdef CNCT_UNIXWARE
+		
+		if (!fork()) {
+			cnct_socket_close(ld);
+			(*callback)(ad);
+			cnct_socket_close(ad);
+			exit(0);
+		}
+		/* full disconnect from client */
+		cnct_socket_close(ad);
+		
+	#else
+		
+		struct thread_data *tdata;
+		tdata = (struct thread_data *) malloc(sizeof(struct thread_data));
+		tdata->sd = ad;
+		tdata->cb = callback;
+		DWORD tid;
+		CreateThread(NULL, NULL, cnct_socket_request, tdata, NULL, &tid);
+		
+	#endif
 	
-	/* fork should be goes here */
-	/*int r =*/ (*callback)(ad);
-	/*
-	if (r == CNCT_SERVER_EXIT) {
-		exit(r);
 	}
-	*/
 	
 	LOG_OUT;
 	

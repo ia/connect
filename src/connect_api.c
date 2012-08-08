@@ -60,6 +60,10 @@ int nc_client_tcp(int argc, const char *argv[])
 int your_server(socket_t sd)
 {
 	printf("server socket: %d\n", sd);
+	char *msg = "echo server\n\0";
+	int len = strlen(msg);
+	send(sd, msg, len, 0);
+	cnct_socket_close(sd);
 	printf("---> place your code here for send/recv <----\n");
 	
 	return 0;
