@@ -1,6 +1,16 @@
 
 #include "connect.h"
 
+/*
+ * TODO:
+ *
+ *  - add UDP support for listen/accept/recv
+ *  - char *msg -> void *data
+ *  - len for recv
+ *  - fork/thread for server
+ *
+ */
+
 /* for Windows platform - init WinSock layer */
 int cnct_start()
 {
@@ -257,10 +267,17 @@ socket_t cnct_socket_connect(cnct_socket_t *sckt)
 	MALLOC_PNTR_TYPE(struct addrinfo, sckt->node);
 	memcpy(sckt->node, node, sizeof(struct addrinfo));
 	
+	DBG_ON(
+		char addr[INET6_ADDRSTRLEN];
+		cnct_socket_getstraddr(node, addr);
+		DBG_INFO(printf("connecting to %s\n", addr));
+	);
+	
+	/*
 	DBG_ON(char addr[INET6_ADDRSTRLEN]);
 	DBG_ON(cnct_socket_getstraddr(node, addr));
 	DBG_INFO(printf("connecting to %s\n", addr));
-	
+	*/
 	freeaddrinfo(nodes);
 	
 	LOG_OUT;
@@ -274,18 +291,21 @@ int cnct_socket_send(cnct_socket_t *socket, char *msg, int len)
 	LOG_IN;
 	
 	int r = 0;
-	int sended = 0;
+	int tx = 0;
 	
-	while(sended < len) {
+	while (tx < len) {
+		/*
 		if (socket->type == SOCK_STREAM) {
-			r = send(socket->sd, msg+sended, len, socket->flags);
+			r = send(socket->sd, msg + tx, len, socket->flags);
 		} else {
-			r = sendto(socket->sd, msg+sended, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen);
+			r = sendto(socket->sd, msg + tx, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen);
 		}
+		*/
+		CNCT_SEND(socket, msg, tx, len, r);
 		if (r == -1) {
 			break;
 		}
-		sended += r;
+		tx  += r;
 		len -= r;
 	}
 	
@@ -387,20 +407,15 @@ socket_t cnct_socket_accept(socket_t ld)
 	
 	socket_t ad;
 	socklen_t slen;
-	struct sockaddr_storage client_addr;
+	struct sockaddr_storage client;
 	
-	slen = sizeof client_addr;
-	ad = accept(ld, (struct sockaddr *) &client_addr, &slen);
+	slen = sizeof(client);
+	ad = accept(ld, (struct sockaddr *) &client, &slen);
 	if (ad == -1) {
 		perror("accept");
 	}
 	
-	//char addr[INET6_ADDRSTRLEN];
-	//inet_ntop(client_addr.ss_family, get_in_addr((struct sockaddr *)&client_addr), addr, sizeof addr);
-	//printf("server: got connection from %s\n", addr);
-	
 	/* close parents' socket for accept() */
-	
 	cnct_socket_close(ld);
 	
 	LOG_OUT;
@@ -409,31 +424,65 @@ socket_t cnct_socket_accept(socket_t ld)
 }
 
 /* set socket for receive */
-int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg)
+int cnct_socket_recv_(cnct_socket_t *socket, socket_t sd, char *msg)
 {
 	LOG_IN;
 	
 	int rx;
-	
-	//printf("server: received from client:\n");
 	
 	if ((rx = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
 	    //exit(1);
 	}
 	
-	//msg[bytes] = '\0';
 	printf("MSG: %s", msg);
 	
 	cnct_socket_close(sd);
-	
-	//printf("Connection closed.\n");
 	
 	LOG_OUT;
 	
 	return rx;
 }
 
+/* recv-whole-buffer routine */
+int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
+{
+	LOG_IN;
+	
+	int r = 0;
+	int rx = 0;
+	
+	if (len == -1) {
+		if ((r = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
+			perror("recv");
+			//return rx?
+			//exit(1);
+		} else {
+			rx = r;
+		}
+	} else {
+		while (rx < len) {
+			
+			//if (socket->type == SOCK_STREAM) {
+				r = recv(sd, msg + rx, len, 0);
+			//} else {
+			//	r = recvfrom(socket->sd, msg + tx, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen);
+			//}
+			
+			if (r == -1) {
+				break;
+			}
+			rx  += r;
+			len -= r;
+		}
+	}
+	
+	LOG_OUT;
+	
+	return r == -1 ? -1 : rx;
+}
+
+/* listen - accept - recv - close */
 int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 {
 	LOG_IN;
@@ -443,16 +492,7 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 	
 	ld = cnct_socket_listen(socket);
 	ad = cnct_socket_accept(ld);
-	
-	//printf("server: received from client:\n");
-	
-	/*
-	cnct_socket_t *sckt_accept;
-	sckt_accept = cnct_socket_clone(socket);
-	sckt_accept->sd = ad;
-	*/
-	
-	rx = cnct_socket_recv(socket, ad, msg);
+	rx = cnct_socket_recv(socket, ad, msg, -1);
 	
 	LOG_OUT;
 	
@@ -466,12 +506,12 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
 	
 	socket_t ld, ad;
 	socklen_t slen;
-	struct sockaddr_storage client_addr;
+	struct sockaddr_storage client;
 	
-	slen = sizeof(client_addr);
+	slen = sizeof(client);
 	
 	ld = cnct_socket_listen(socket);
-	ad = accept(ld, (struct sockaddr *) &client_addr, &slen);
+	ad = accept(ld, (struct sockaddr *) &client, &slen);
 	
 	if (ad == -1) {
 		perror("accept");

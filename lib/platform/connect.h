@@ -123,6 +123,11 @@
 #define CNCT_TCP SOCK_STREAM
 #define CNCT_UDP SOCK_DGRAM
 
+#define CNCT_SEND(socket, data, ptr, len, ret) \
+	if (socket->type == SOCK_STREAM) \
+		{ ret = send  (socket->sd, data + ptr, len, socket->flags); } \
+	else    { ret = sendto(socket->sd, data + ptr, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen); }
+
 /* *** */
 
 #endif /* _PLATFORM_H_ */

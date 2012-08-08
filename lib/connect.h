@@ -52,7 +52,8 @@ CNCT_EXPORT  int             cnct_socket_sendmsg  (cnct_socket_t *socket, char *
 CNCT_EXPORT  int             cnct_socket_recvmsg  (cnct_socket_t *socket, char *msg);
 
 CNCT_EXPORT  int             cnct_socket_send     (cnct_socket_t *socket, char *msg, int len);
-CNCT_EXPORT  int             cnct_socket_recv     (cnct_socket_t *socket, socket_t sd, char *msg);
+CNCT_EXPORT  int             cnct_socket_recv     (cnct_socket_t *socket, socket_t sd, char *msg, int len);
+CNCT_EXPORT  int             cnct_socket_recv_    (cnct_socket_t *socket, socket_t sd, char *msg);
 
 CNCT_EXPORT  socket_t        cnct_socket_connect  (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_listen   (cnct_socket_t *socket);
