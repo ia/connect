@@ -501,25 +501,28 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 }
 
 #ifdef CNCT_WINSWARE
-
+/*
 struct thread_data {
 	cnct_socket_t *socket;
 	socket_t sd;
 	int (*cb)(cnct_socket_t *, socket_t);
 };
+*/
 
+/*
 DWORD WINAPI cnct_socket_request(void *data)
 {
-	/*
-	socket_t ad;
-	ad = ((struct thread_data *) data)->sd;
-	*/
+	
+	//socket_t ad;
+	//ad = ((struct thread_data *) data)->sd;
+	
 	(*((struct thread_data *) data)->cb) (
 			(((struct thread_data *) data)->socket),
 			(((struct thread_data *) data)->sd)
 	);
 	return 0;
 }
+*/
 
 #endif
 
@@ -533,26 +536,29 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 	struct sockaddr_storage client;
 	
 	slen = sizeof(client);
-	
+	DBG_INFO();
 	ld = cnct_socket_listen(socket);
-	
+	DBG_INFO();
 	while (1) {
+		DBG_INFO();
 		ad = accept(ld, (struct sockaddr *) &client, &slen);
 		if (ad == -1) {
 			perror("accept");
 			continue;
 		}
-		
+		DBG_INFO();
 	#ifdef CNCT_UNIXWARE
 		
 		if (!fork()) {
+			DBG_INFO();
 			cnct_socket_close(ld);
 			(*callback)(socket, ad);
-			cnct_socket_close(ad);
+//			cnct_socket_close(ad);
 			exit(0);
 		}
+		DBG_INFO();
 		/* full disconnect from client */
-		cnct_socket_close(ad);
+	//	cnct_socket_close(ad);
 		
 	#else
 		

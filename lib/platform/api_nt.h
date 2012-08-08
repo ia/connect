@@ -26,5 +26,28 @@
 
 /* *** */
 
+/* custom WIN32 specific data types */
+
+struct thread_data {
+	cnct_socket_t *socket;
+	socket_t sd;
+	int (*cb)(cnct_socket_t *, socket_t);
+};
+
+/* *** */
+
+/* custom WIN32 specific functions */
+
+static DWORD WINAPI cnct_socket_request(void *data)
+{
+	(*((struct thread_data *) data)->cb) (
+			(((struct thread_data *) data)->socket),
+			(((struct thread_data *) data)->sd)
+	);
+	return 0;
+}
+
+/* *** */
+
 #endif /* _API_NT_H_ */
 

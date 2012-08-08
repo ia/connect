@@ -63,9 +63,20 @@ int your_server(cnct_socket_t *socket, socket_t sd)
 	char *msg = "echo server\n\0";
 	int len = strlen(msg);
 	send(sd, msg, len, 0);
-	cnct_socket_close(sd);
+//	cnct_socket_close(sd);
 	printf("---> place your code here for send/recv <----\n");
-	
+//	send(sd, msg, len, 0);
+	printf("\n");
+	if (shutdown(sd, SHUT_RDWR) != 0) {
+		perror("shutdown");
+	}
+	printf("\n");
+	if (close(sd) != 0) {
+		perror("close");
+	}
+	printf("\n");
+	//cnct_socket_close(sd);
+	DBG_INFO();
 	return 0;
 }
 
