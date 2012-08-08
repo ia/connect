@@ -57,7 +57,7 @@ int nc_client_tcp(int argc, const char *argv[])
 /* stand alone connect API based sample for socket server */
 
 /* server callback */
-int your_server(socket_t sd)
+int your_server(cnct_socket_t *socket, socket_t sd)
 {
 	printf("server socket: %d\n", sd);
 	char *msg = "echo server\n\0";

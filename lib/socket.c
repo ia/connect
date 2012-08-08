@@ -503,22 +503,28 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 #ifdef CNCT_WINSWARE
 
 struct thread_data {
+	cnct_socket_t *socket;
 	socket_t sd;
-	int (*cb)(socket_t arg);
+	int (*cb)(cnct_socket_t *, socket_t);
 };
 
 DWORD WINAPI cnct_socket_request(void *data)
 {
+	/*
 	socket_t ad;
 	ad = ((struct thread_data *) data)->sd;
-	(*((struct thread_data *) data)->cb)(ad);
+	*/
+	(*((struct thread_data *) data)->cb) (
+			(((struct thread_data *) data)->socket),
+			(((struct thread_data *) data)->sd)
+	);
 	return 0;
 }
 
 #endif
 
 /* init server for processing accepted connections in callback */
-int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
+int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, socket_t))
 {
 	LOG_IN;
 	
@@ -541,7 +547,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
 		
 		if (!fork()) {
 			cnct_socket_close(ld);
-			(*callback)(ad);
+			(*callback)(socket, ad);
 			cnct_socket_close(ad);
 			exit(0);
 		}
@@ -551,7 +557,8 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(socket_t))
 	#else
 		
 		struct thread_data *tdata;
-		tdata = (struct thread_data *) malloc(sizeof(struct thread_data));
+		//tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free */
+		tdata->socket = socket;
 		tdata->sd = ad;
 		tdata->cb = callback;
 		DWORD tid;
