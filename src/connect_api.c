@@ -64,8 +64,6 @@ int your_server(cnct_socket_t *socket, socket_t sd)
 	int len = strlen(msg);
 	send(sd, msg, len, 0);
 	printf("---> place your code here for send/recv <----\n");
-	//cnct_socket_close(sd);
-	//cnct_socket_shutdown(sd);
 	if (socket->autoclose != 1) {
 		printf("---- Don't forget to close socket manually after you're done ----\n");
 		cnct_socket_shutdown(sd); /* TODO : FIXME */
@@ -93,9 +91,6 @@ int demo_server(const char *argv[])
 /* stand alone connect API based sample for receiving one message over TCP socket */
 int demo_recvmsg(const char *argv[])
 {
-#ifdef CNCT_UNIXWARE
-	printf("CNCT_UNIXWARE\n");
-#endif
 	printf("receiving message:\n");
 	printf("\tport: %s\n", argv[2]);
 	

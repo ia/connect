@@ -4,11 +4,13 @@
 /*
  * TODO:
  *
+ *  - LOG_OUT_RET
+ *  - each error processing
  *  - wrap server routine in macros/headers/defines/funcs
  *  - add UDP support for listen/accept/recv
  *  - char *msg -> void *data
  *  - len for recv
- *  - fork/thread for server
+ *  - clean up release/debug output
  *
  */
 
@@ -62,6 +64,7 @@ int cnct_finish()
 #endif /* CNCT_WINSWARE */
 	
 	LOG_OUT;
+	
 	return 0;
 }
 
@@ -76,6 +79,7 @@ void *cnct_socket_getaddr(struct sockaddr *sa)
 	}
 	
 	LOG_OUT;
+	
 	return &(((struct sockaddr_in6 *) sa)->sin6_addr);
 }
 
@@ -288,11 +292,6 @@ socket_t cnct_socket_connect(cnct_socket_t *sckt)
 		DBG_INFO(printf("connecting to %s\n", addr));
 	);
 	
-	/*
-	DBG_ON(char addr[INET6_ADDRSTRLEN]);
-	DBG_ON(cnct_socket_getstraddr(node, addr));
-	DBG_INFO(printf("connecting to %s\n", addr));
-	*/
 	freeaddrinfo(nodes);
 	
 	LOG_OUT;
@@ -309,13 +308,6 @@ int cnct_socket_send(cnct_socket_t *socket, char *msg, int len)
 	int tx = 0;
 	
 	while (tx < len) {
-		/*
-		if (socket->type == SOCK_STREAM) {
-			r = send(socket->sd, msg + tx, len, socket->flags);
-		} else {
-			r = sendto(socket->sd, msg + tx, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen);
-		}
-		*/
 		CNCT_SEND(socket, msg, tx, len, r);
 		if (r == -1) {
 			break;
@@ -326,7 +318,7 @@ int cnct_socket_send(cnct_socket_t *socket, char *msg, int len)
 	
 	LOG_OUT;
 	
-	return r == -1 ? -1 : 0;
+	return r == -1 ? -1 : tx;
 }
 
 /* connect - send - close */
@@ -338,7 +330,7 @@ int cnct_socket_sendmsg(cnct_socket_t *socket, char *msg, int len)
 		socket->sd = cnct_socket_connect(socket);
 	}
 	
-	if (cnct_socket_send(socket, msg, len)) {
+	if (cnct_socket_send(socket, msg, len) == -1) {
 		printf("error: can't send all\n");
 	}
 	
@@ -383,7 +375,6 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 //	#ifdef CNCT_UNIXWARE
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
 			perror("setsockopt");
-//			exit(1);
 		}
 //	#endif /* CNCT_UNIXWARE */
 		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
@@ -447,7 +438,6 @@ int cnct_socket_recv_(cnct_socket_t *socket, socket_t sd, char *msg)
 	
 	if ((rx = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
 	    perror("recv");
-	    //exit(1);
 	}
 	
 	printf("MSG: %s", msg);
@@ -470,8 +460,6 @@ int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 	if (len == -1) {
 		if ((r = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
 			perror("recv");
-			//return rx?
-			//exit(1);
 		} else {
 			rx = r;
 		}
@@ -527,9 +515,6 @@ struct thread_data {
 DWORD WINAPI cnct_socket_request(void *data)
 {
 	
-	//socket_t ad;
-	//ad = ((struct thread_data *) data)->sd;
-	
 	(*((struct thread_data *) data)->cb) (
 			(((struct thread_data *) data)->socket),
 			(((struct thread_data *) data)->sd)
@@ -541,6 +526,8 @@ DWORD WINAPI cnct_socket_request(void *data)
 	
 	return 0;
 }
+
+/* *** */
 
 #endif
 
@@ -580,7 +567,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 	#else
 		
 		struct thread_data *tdata;
-		tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free */
+		tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free? */
 		tdata->socket = socket;
 		tdata->sd = ad;
 		tdata->cb = callback;
