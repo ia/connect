@@ -58,6 +58,7 @@ CNCT_EXPORT  int             cnct_socket_recv_    (cnct_socket_t *socket, socket
 CNCT_EXPORT  socket_t        cnct_socket_connect  (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_listen   (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_accept   (socket_t socket);
+CNCT_EXPORT  int             cnct_socket_shutdown (socket_t socket);
 
 CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*callback)(cnct_socket_t *socket, socket_t sd));
 

@@ -16,6 +16,9 @@
 	#define CNCT_SOCKETS  "BSD"
 	#define socket_t int
 	#define cnct_socket_close(socket_t) close(socket_t)
+	#define CNCT_SHUTDOWN_RX      SHUT_RD
+	#define CNCT_SHUTDOWN_TX      SHUT_WR
+	#define CNCT_SHUTDOWN_DUPLEX  SHUT_RDWR
 	#define CNCT_EXPORT
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
@@ -26,6 +29,9 @@
 	#define CNCT_SOCKETS  "WIN"
 	#define socket_t SOCKET
 	#define cnct_socket_close(socket_t) closesocket(socket_t)
+	#define CNCT_SHUTDOWN_RX      SD_RECEIVE
+	#define CNCT_SHUTDOWN_TX      SD_SEND
+	#define CNCT_SHUTDOWN_DUPLEX  SD_BOTH
 	#define CNCT_EXPORT __declspec(dllexport)
 	#define __func__ __FUNCTION__
 	

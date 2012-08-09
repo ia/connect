@@ -63,20 +63,15 @@ int your_server(cnct_socket_t *socket, socket_t sd)
 	char *msg = "echo server\n\0";
 	int len = strlen(msg);
 	send(sd, msg, len, 0);
-//	cnct_socket_close(sd);
 	printf("---> place your code here for send/recv <----\n");
-//	send(sd, msg, len, 0);
-	printf("\n");
-	if (shutdown(sd, SHUT_RDWR) != 0) {
-		perror("shutdown");
-	}
-	printf("\n");
-	if (close(sd) != 0) {
-		perror("close");
-	}
-	printf("\n");
 	//cnct_socket_close(sd);
-	DBG_INFO();
+	//cnct_socket_shutdown(sd);
+	if (socket->autoclose != 1) {
+		printf("---- Don't forget to close socket manually after you're done ----\n");
+		cnct_socket_shutdown(sd); /* TODO : FIXME */
+		//cnct_socket_close(sd);
+	}
+	printf("---> exit. Waiting for new connection now ... <----\n");
 	return 0;
 }
 
@@ -86,7 +81,7 @@ int demo_server(const char *argv[])
 	printf("starting server:\n");
 	printf("\tport: %s\n", argv[2]);
 	
-	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 1, 0);
+	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 0, 0);
 	cnct_socket_server(sckt_server, your_server);
 	cnct_socket_delete(sckt_server);
 	

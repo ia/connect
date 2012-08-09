@@ -207,10 +207,24 @@ int cnct_socket_delete(cnct_socket_t *socket)
 		FREE_PNTR(socket->port);
 		FREE_PNTR(socket->node);
 		
-		cnct_socket_close(socket->sd);
+		//cnct_socket_close(socket->sd);
+		cnct_socket_shutdown(socket->sd);
 		
 		free(socket);
 	}
+	
+	LOG_OUT;
+	
+	return 0;
+}
+
+/* shutdown socket descriptor routine */
+int cnct_socket_shutdown(socket_t sd)
+{
+	LOG_IN;
+	
+	shutdown(sd, CNCT_SHUTDOWN_DUPLEX);
+	cnct_socket_close(sd);
 	
 	LOG_OUT;
 	
@@ -501,15 +515,15 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 }
 
 #ifdef CNCT_WINSWARE
-/*
+
+/* required routine for WinSock callback support */
+
 struct thread_data {
 	cnct_socket_t *socket;
 	socket_t sd;
 	int (*cb)(cnct_socket_t *, socket_t);
 };
-*/
 
-/*
 DWORD WINAPI cnct_socket_request(void *data)
 {
 	
@@ -520,9 +534,13 @@ DWORD WINAPI cnct_socket_request(void *data)
 			(((struct thread_data *) data)->socket),
 			(((struct thread_data *) data)->sd)
 	);
+	
+	if (((struct thread_data *) data)->socket->autoclose) {
+		cnct_socket_close((((struct thread_data *) data)->sd));
+	}
+	
 	return 0;
 }
-*/
 
 #endif
 
@@ -536,40 +554,40 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 	struct sockaddr_storage client;
 	
 	slen = sizeof(client);
-	DBG_INFO();
+	
 	ld = cnct_socket_listen(socket);
-	DBG_INFO();
+	
 	while (1) {
-		DBG_INFO();
 		ad = accept(ld, (struct sockaddr *) &client, &slen);
 		if (ad == -1) {
 			perror("accept");
 			continue;
 		}
-		DBG_INFO();
+		
 	#ifdef CNCT_UNIXWARE
 		
 		if (!fork()) {
-			DBG_INFO();
 			cnct_socket_close(ld);
 			(*callback)(socket, ad);
-//			cnct_socket_close(ad);
+			cnct_socket_close(ad);
 			exit(0);
 		}
-		DBG_INFO();
 		/* full disconnect from client */
-	//	cnct_socket_close(ad);
+		if (socket->autoclose) {
+			cnct_socket_close(ad);
+		}
 		
 	#else
 		
 		struct thread_data *tdata;
-		//tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free */
+		tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free */
 		tdata->socket = socket;
 		tdata->sd = ad;
 		tdata->cb = callback;
+		//tdata->cb = (int (*)(void *, socket_t)) callback;
 		DWORD tid;
 		CreateThread(NULL, NULL, cnct_socket_request, tdata, NULL, &tid);
-		
+		DBG_ON(printf("CREATE_THREAD\n"));
 	#endif
 	
 	}
