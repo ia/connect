@@ -134,3 +134,17 @@ http://www.opennet.ru/base/dev/traffic_analyze.txt.html
 http://www.linuxjournal.com/article/4659
 http://blog.fpmurphy.com/2011/01/spoof-arp-and-icmp-echoreply-using-linux-packet-filter.html
 
+==== other ====
+
+http://msdn.microsoft.com/en-us/library/fwkeyyhe.aspx
+http://mcdermottcybersecurity.com/articles/windows-x64-shellcode
+http://www.phrack.org/issues.html?id=7&issue=62
+http://www.phrack.org/issues.html?issue=49&id=15#article
+http://www.suacommunity.com/dictionary/sigaction-entry.php
+http://seclists.org/fulldisclosure/2010/Mar/att-553/Windows-DEP-WPM.txt
+http://www.mastropaolo.com/2005/06/05/buffer-overflow-attacks-bypassing-dep-nxxd-bits-part-2-code-injection/
+http://www.shell-storm.org/shellcode/shellcode-windows.php
+http://blog.kowalczyk.info/article/clexe-cmd-line-args.html
+http://www.winsocketdotnetworkprogramming.com/winsock2programming/
+http://tangentsoft.net/wskfaq/examples/basics/
+http://tangentsoft.net/wskfaq/examples/basics/index.html
