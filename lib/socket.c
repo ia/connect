@@ -357,9 +357,11 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 	
 	/* init routine */
 	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
+//	hints.ai_family = AF_UNSPEC;
+	hints.ai_family = AF_INET6;
 	hints.ai_socktype = sckt->type;
 	hints.ai_flags = AI_PASSIVE;
+//	hints.ai_protocol = IPPROTO_TCP;
 	
 	if ((resolv = getaddrinfo(NULL, sckt->port, &hints, &nodes)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(resolv));
@@ -372,6 +374,14 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 			perror("server: socket");
 			continue;
 		}
+		if (node->ai_family == AF_INET) {
+			printf("bind AF_INET\n");
+		} else if (node->ai_family == AF_INET6) {
+			printf("bind AF_INET6\n");
+		} else {
+			printf("bind %d\n", node->ai_family);
+		}
+
 //	#ifdef CNCT_UNIXWARE
 		if (sckt->type == SOCK_STREAM) {
 			if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
@@ -615,7 +625,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 			struct thread_data *tdata;
 			tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free? */
 			tdata->socket = socket;
-			tdata->sd = -1;
+			tdata->sd = ld;
 			tdata->client = client;
 			tdata->cb = callback;
 			//tdata->cb = (int (*)(void *, socket_t)) callback;
