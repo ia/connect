@@ -357,8 +357,8 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 	
 	/* init routine */
 	memset(&hints, 0, sizeof hints);
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_family = AF_INET;
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = sckt->type;
 	hints.ai_flags = AI_PASSIVE;
 	
 	if ((resolv = getaddrinfo(NULL, sckt->port, &hints, &nodes)) != 0) {
@@ -373,8 +373,10 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 			continue;
 		}
 //	#ifdef CNCT_UNIXWARE
-		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
-			perror("setsockopt");
+		if (sckt->type == SOCK_STREAM) {
+			if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(int)) == -1) {
+				perror("setsockopt");
+			}
 		}
 //	#endif /* CNCT_UNIXWARE */
 		printf("server: port = %d\n", (((struct sockaddr_in *) node->ai_addr)->sin_port));
@@ -395,9 +397,11 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 	/* free structure since it's not using anymore */
 	freeaddrinfo(nodes);
 	
-	if (listen(sd, BACKLOG) == -1) {
-		perror("listen");
-		exit(1);
+	if (sckt->type == SOCK_STREAM) {
+		if (listen(sd, BACKLOG) == -1) {
+			perror("listen");
+			exit(1);
+		}
 	}
 	
 	printf("server: waiting for connections...\n");
@@ -509,7 +513,8 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 struct thread_data {
 	cnct_socket_t *socket;
 	socket_t sd;
-	int (*cb)(cnct_socket_t *, socket_t);
+	struct sockaddr_storage client;
+	int (*cb)(cnct_socket_t *, socket_t, sockaddr_storage);
 };
 
 DWORD WINAPI cnct_socket_request(void *data)
@@ -517,11 +522,14 @@ DWORD WINAPI cnct_socket_request(void *data)
 	
 	(*((struct thread_data *) data)->cb) (
 			(((struct thread_data *) data)->socket),
-			(((struct thread_data *) data)->sd)
+			(((struct thread_data *) data)->sd),
+			(((struct thread_data *) data)->client)
 	);
 	
-	if (((struct thread_data *) data)->socket->autoclose) {
-		cnct_socket_close((((struct thread_data *) data)->sd));
+	if (((struct thread_data *) data)->socket->type == CNCT_TCP) {
+		if (((struct thread_data *) data)->socket->autoclose) {
+			cnct_socket_close((((struct thread_data *) data)->sd));
+		}
 	}
 	
 	return 0;
@@ -532,7 +540,7 @@ DWORD WINAPI cnct_socket_request(void *data)
 #endif
 
 /* init server for processing accepted connections in callback */
-int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, socket_t))
+int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, socket_t, struct sockaddr_storage))
 {
 	LOG_IN;
 	
@@ -545,38 +553,79 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 	ld = cnct_socket_listen(socket);
 	
 	while (1) {
-		ad = accept(ld, (struct sockaddr *) &client, &slen);
-		if (ad == -1) {
-			perror("accept");
-			continue;
+		if (socket->type == SOCK_STREAM) {
+			ad = accept(ld, (struct sockaddr *) &client, &slen);
+			if (ad == -1) {
+				perror("accept");
+				continue;
+			}
+			
+		#ifdef CNCT_UNIXWARE
+			
+			if (!fork()) {
+				cnct_socket_close(ld);
+	//			(*callback)(socket, ad);
+				(*callback)(socket, ad, client);
+				cnct_socket_close(ad);
+				exit(0);
+			}
+			/* full disconnect from client */
+			if (socket->autoclose) {
+				cnct_socket_close(ad);
+			}
+			
+		#else
+			
+			struct thread_data *tdata;
+			tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free? */
+			tdata->socket = socket;
+			tdata->sd = ad;
+			tdata->client = client;
+			tdata->cb = callback;
+			//tdata->cb = (int (*)(void *, socket_t)) callback;
+			DWORD tid;
+			CreateThread(NULL, NULL, cnct_socket_request, tdata, NULL, &tid);
+			DBG_ON(printf("CREATE_THREAD\n"));
+			
+		#endif
+		} else {
+			
+			DBG_ON(printf("recvfrom berfore\n"););
+			//MALLOC_TYPE_SIZE(char, msg, MAXDATASIZE);
+			char *msg = (char *) malloc(MAXDATASIZE);
+			memset(msg, '\0', MAXDATASIZE);
+			DBG_ON(printf("recvfrom -->\n"););
+			ad = recvfrom(ld, msg, MAXDATASIZE-1, 0, (struct sockaddr *) &client, &slen);
+			DBG_ON(printf("recvfrom <--\n"););
+			if (ad == -1) {
+				perror("recvfrom");
+				continue;
+			}
+			DBG_ON(printf("recvfrom after\n"););
+		#ifdef CNCT_UNIXWARE
+			
+			if (!fork()) {
+				(*callback)(socket, ld, client);
+				cnct_socket_close(ld);
+				exit(0);
+			}
+			
+		#else
+			
+			struct thread_data *tdata;
+			tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free? */
+			tdata->socket = socket;
+			tdata->sd = -1;
+			tdata->client = client;
+			tdata->cb = callback;
+			//tdata->cb = (int (*)(void *, socket_t)) callback;
+			DWORD tid;
+			CreateThread(NULL, NULL, cnct_socket_request, tdata, NULL, &tid);
+			DBG_ON(printf("CREATE_THREAD\n"));
+			
+		#endif
+			
 		}
-		
-	#ifdef CNCT_UNIXWARE
-		
-		if (!fork()) {
-			cnct_socket_close(ld);
-			(*callback)(socket, ad);
-			cnct_socket_close(ad);
-			exit(0);
-		}
-		/* full disconnect from client */
-		if (socket->autoclose) {
-			cnct_socket_close(ad);
-		}
-		
-	#else
-		
-		struct thread_data *tdata;
-		tdata = (struct thread_data *) malloc(sizeof(struct thread_data)); /* TODO: free? */
-		tdata->socket = socket;
-		tdata->sd = ad;
-		tdata->cb = callback;
-		//tdata->cb = (int (*)(void *, socket_t)) callback;
-		DWORD tid;
-		CreateThread(NULL, NULL, cnct_socket_request, tdata, NULL, &tid);
-		DBG_ON(printf("CREATE_THREAD\n"));
-	#endif
-	
 	}
 	
 	LOG_OUT;

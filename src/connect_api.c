@@ -54,10 +54,39 @@ int nc_client_tcp(int argc, const char *argv[])
 
 */
 
-/* stand alone connect API based sample for socket server */
+/* stand alone connect API based sample for socket UDP server */
 
 /* server callback */
-int your_server(cnct_socket_t *socket, socket_t sd)
+int your_udp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client)
+{
+	printf("server socket: %d\n", sd);
+	char *msg = "echo server\n\0";
+	int len = strlen(msg);
+	socklen_t slen = sizeof(client);
+	sendto(sd, msg, len, 0, (struct sockaddr *) &client, slen);
+	printf("---> place your code here for send/recv <----\n");
+	cnct_socket_close(sd);
+	printf("---> exit. Waiting for new connection now ... <----\n");
+	return 0;
+}
+
+/* server init */
+int demo_udp_server(const char *argv[])
+{
+	printf("starting server:\n");
+	printf("\tport: %s\n", argv[2]);
+	
+	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_UDP, 0, 0, 0);
+	cnct_socket_server(sckt_server, your_udp_server);
+	cnct_socket_delete(sckt_server);
+	
+	return 0;
+}
+
+/* stand alone connect API based sample for socket TCP server */
+
+/* server callback */
+int your_tcp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client)
 {
 	printf("server socket: %d\n", sd);
 	char *msg = "echo server\n\0";
@@ -74,13 +103,13 @@ int your_server(cnct_socket_t *socket, socket_t sd)
 }
 
 /* server init */
-int demo_server(const char *argv[])
+int demo_tcp_server(const char *argv[])
 {
 	printf("starting server:\n");
 	printf("\tport: %s\n", argv[2]);
 	
 	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 0, 0);
-	cnct_socket_server(sckt_server, your_server);
+	cnct_socket_server(sckt_server, your_tcp_server);
 	cnct_socket_delete(sckt_server);
 	
 	return 0;
@@ -127,7 +156,8 @@ int usage(const char *name)
 	printf("\t<sample> - type of demo:\n");
 	printf("\t\tsendmsg text host port\n");
 	printf("\t\trecvmsg port\n");
-	printf("\t\tserver  port\n");
+	printf("\t\ttcpserver  port\n");
+	printf("\t\tudpserver  port\n");
 	return 0;
 }
 
@@ -149,8 +179,10 @@ int main(int argc, const char *argv[])
 		demo_sendmsg(argv);
 	} else if ((strcmp(argv[1], "recvmsg") == 0) && (argc == 3)) {
 		demo_recvmsg(argv);
-	} else if ((strcmp(argv[1], "server") == 0) && (argc == 3)) {
-		demo_server(argv);
+	} else if ((strcmp(argv[1], "tcpserver") == 0) && (argc == 3)) {
+		demo_tcp_server(argv);
+	} else if ((strcmp(argv[1], "udpserver") == 0) && (argc == 3)) {
+		demo_udp_server(argv);
 	} else {
 		return usage(argv[0]);
 	}

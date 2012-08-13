@@ -104,6 +104,9 @@
 #define MALLOC_PNTR_SIZE(type, var, size) \
 	var = (type *) malloc(size); if (!var) { printf("malloc error\n"); } else { memset(var, '\0', size); }
 
+#define MALLOC_TYPE_SIZE(type, var, size) \
+	type *var = (type *) malloc(size); if (!var) { printf("malloc error\n"); } else { memset(var, '\0', size); }
+
 #define MALLOC_PNTR_TYPE(type, var) \
 	var = (type *) malloc(sizeof(type)); if (!var) { printf("malloc error\n"); } else { memset(var, '\0', sizeof(type)); }
 
