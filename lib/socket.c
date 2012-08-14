@@ -156,7 +156,7 @@ int cnct_socket_setnonblock(socket_t sd)
 }
 
 /* create socket struct routine */
-cnct_socket_t *cnct_socket_create(char *host, char *port, int type, int reuse, int autoclose, int flags)
+cnct_socket_t *cnct_socket_create(char *host, char *port, int ipv, int type, int reuse, int autoclose, int flags)
 {
 	LOG_IN;
 	
@@ -166,9 +166,12 @@ cnct_socket_t *cnct_socket_create(char *host, char *port, int type, int reuse, i
 	IF_NOT_NULL(port, MALLOC_PNTR_SIZE(char, socket->port, strlen(port)); strcpy(socket->port, port));
 	
 	socket->sd = -1;
-	socket->type = type;
-	socket->reuse = reuse;
-	socket->autoclose = autoclose;
+	
+	SET_VALUE(socket->ipv, ipv, AF_INET6, AF_INET);
+	SET_VALUE(socket->type, type, SOCK_DGRAM, SOCK_STREAM);
+	
+	socket->reuse = ((reuse == 0) ? 0 : 1);
+	socket->autoclose = ((autoclose == 0) ? 0 : 1);
 	socket->flags = flags;
 	socket->node = NULL;
 	
@@ -190,6 +193,7 @@ cnct_socket_t *cnct_socket_clone(cnct_socket_t *sckt_src)
 	IF_NOT_NULL(sckt_src->node, MALLOC_PNTR_TYPE(struct addrinfo, sckt_dst->node); memcpy(sckt_dst->node, sckt_src->node, sizeof(struct addrinfo)));
 	
 	sckt_dst->sd        = sckt_src->sd;
+	sckt_dst->ipv       = sckt_src->ipv;
 	sckt_dst->type      = sckt_src->type;
 	sckt_dst->reuse     = sckt_src->reuse;
 	sckt_dst->autoclose = sckt_src->autoclose;
@@ -357,11 +361,9 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 	
 	/* init routine */
 	memset(&hints, 0, sizeof hints);
-//	hints.ai_family = AF_UNSPEC;
-	hints.ai_family = AF_INET6;
+	hints.ai_family = sckt->ipv;
 	hints.ai_socktype = sckt->type;
 	hints.ai_flags = AI_PASSIVE;
-//	hints.ai_protocol = IPPROTO_TCP;
 	
 	if ((resolv = getaddrinfo(NULL, sckt->port, &hints, &nodes)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(resolv));
@@ -408,7 +410,7 @@ socket_t cnct_socket_listen(cnct_socket_t *sckt)
 	freeaddrinfo(nodes);
 	
 	if (sckt->type == SOCK_STREAM) {
-		if (listen(sd, BACKLOG) == -1) {
+		if (listen(sd, CNCT_SOCKET_BACKLOG) == -1) {
 			perror("listen");
 			exit(1);
 		}
@@ -443,26 +445,6 @@ socket_t cnct_socket_accept(socket_t ld)
 	return ad;
 }
 
-/* set socket for receive */
-int cnct_socket_recv_(cnct_socket_t *socket, socket_t sd, char *msg)
-{
-	LOG_IN;
-	
-	int rx;
-	
-	if ((rx = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	}
-	
-	printf("MSG: %s", msg);
-	
-	cnct_socket_close(sd);
-	
-	LOG_OUT;
-	
-	return rx;
-}
-
 /* recv-whole-buffer routine */
 int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 {
@@ -472,20 +454,18 @@ int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 	int rx = 0;
 	
 	if (len == -1) {
-		if ((r = recv(sd, msg, MAXDATASIZE-1, 0)) == -1) {
+		/* TODO: FIXME: remove */
+		/* recv as much as possible */
+		CNCT_RECV(socket, sd, msg, rx, CNCT_SOCKET_DATASIZE-1, r);
+		if (r == -1) {
 			perror("recv");
 		} else {
 			rx = r;
 		}
 	} else {
+		/* recv only specified amount of data */
 		while (rx < len) {
-			
-			//if (socket->type == SOCK_STREAM) {
-				r = recv(sd, msg + rx, len, 0);
-			//} else {
-			//	r = recvfrom(socket->sd, msg + tx, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen);
-			//}
-			
+			CNCT_RECV(socket, sd, msg, rx, len, r)
 			if (r == -1) {
 				break;
 			}
@@ -500,7 +480,7 @@ int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 }
 
 /* listen - accept - recv - close */
-int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
+int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg, int len)
 {
 	LOG_IN;
 	
@@ -508,8 +488,12 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg)
 	socket_t ad, ld;
 	
 	ld = cnct_socket_listen(socket);
-	ad = cnct_socket_accept(ld);
-	rx = cnct_socket_recv(socket, ad, msg, -1);
+	if (socket->type == SOCK_STREAM) {
+		ad = cnct_socket_accept(ld);
+		rx = cnct_socket_recv(socket, ad, msg, len);
+	} else {
+		rx = cnct_socket_recv(socket, ld, msg, len);
+	}
 	
 	LOG_OUT;
 	
@@ -524,7 +508,8 @@ struct thread_data {
 	cnct_socket_t *socket;
 	socket_t sd;
 	struct sockaddr_storage client;
-	int (*cb)(cnct_socket_t *, socket_t, sockaddr_storage);
+	cnct_sockdata_t udp_data;
+	int (*cb)(cnct_socket_t *, socket_t, sockaddr_storage, cnct_sockdata_t);
 };
 
 DWORD WINAPI cnct_socket_request(void *data)
@@ -533,10 +518,11 @@ DWORD WINAPI cnct_socket_request(void *data)
 	(*((struct thread_data *) data)->cb) (
 			(((struct thread_data *) data)->socket),
 			(((struct thread_data *) data)->sd),
-			(((struct thread_data *) data)->client)
+			(((struct thread_data *) data)->client),
+			(((struct thread_data *) data)->udp_data)
 	);
 	
-	if (((struct thread_data *) data)->socket->type == CNCT_TCP) {
+	if (((struct thread_data *) data)->socket->type == SOCK_STREAM) {
 		if (((struct thread_data *) data)->socket->autoclose) {
 			cnct_socket_close((((struct thread_data *) data)->sd));
 		}
@@ -550,13 +536,17 @@ DWORD WINAPI cnct_socket_request(void *data)
 #endif
 
 /* init server for processing accepted connections in callback */
-int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, socket_t, struct sockaddr_storage))
+int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, socket_t, struct sockaddr_storage, cnct_sockdata_t))
 {
 	LOG_IN;
 	
 	socket_t ld, ad;
 	socklen_t slen;
 	struct sockaddr_storage client;
+	cnct_sockdata_t udp_data;
+	
+	memset(&udp_data.data, '\0', CNCT_SOCKET_DATASIZE);
+	udp_data.len = -1;
 	
 	slen = sizeof(client);
 	
@@ -574,8 +564,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 			
 			if (!fork()) {
 				cnct_socket_close(ld);
-	//			(*callback)(socket, ad);
-				(*callback)(socket, ad, client);
+				(*callback)(socket, ad, client, udp_data);
 				cnct_socket_close(ad);
 				exit(0);
 			}
@@ -598,24 +587,22 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 			DBG_ON(printf("CREATE_THREAD\n"));
 			
 		#endif
+		
 		} else {
 			
-			DBG_ON(printf("recvfrom berfore\n"););
-			//MALLOC_TYPE_SIZE(char, msg, MAXDATASIZE);
-			char *msg = (char *) malloc(MAXDATASIZE);
-			memset(msg, '\0', MAXDATASIZE);
-			DBG_ON(printf("recvfrom -->\n"););
-			ad = recvfrom(ld, msg, MAXDATASIZE-1, 0, (struct sockaddr *) &client, &slen);
-			DBG_ON(printf("recvfrom <--\n"););
+			memset(&udp_data.data, '\0', CNCT_SOCKET_DATASIZE);
+			
+			ad = recvfrom(ld, (char *) &udp_data.data, CNCT_SOCKET_DATASIZE-1, 0, (struct sockaddr *) &client, &slen);
 			if (ad == -1) {
 				perror("recvfrom");
 				continue;
 			}
-			DBG_ON(printf("recvfrom after\n"););
+			udp_data.len = ad;
+		
 		#ifdef CNCT_UNIXWARE
 			
 			if (!fork()) {
-				(*callback)(socket, ld, client);
+				(*callback)(socket, ld, client, udp_data);
 				cnct_socket_close(ld);
 				exit(0);
 			}
@@ -627,6 +614,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 			tdata->socket = socket;
 			tdata->sd = ld;
 			tdata->client = client;
+			tdata->udp_data = udp_data;
 			tdata->cb = callback;
 			//tdata->cb = (int (*)(void *, socket_t)) callback;
 			DWORD tid;

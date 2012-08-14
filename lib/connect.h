@@ -4,33 +4,50 @@
 
 #include "platform/connect.h"
 
+#define CNCT_SOCKET_DATASIZE 4096
+#define CNCT_SOCKET_BACKLOG  1024
+
 /* *** connect library custom data types *** */
 
-/* socket_t - socket file descriptor data type */
+/* general custom data type for easier usage of cnct_socket_* functions */
 
 struct cnct_socket_struct {
+	/* socket_t - socket file descriptor data type */
 	socket_t          sd;
 	char             *host;
 	char             *port;
+	int               ipv;
 	int               type;
 	int               reuse;
 	int               autoclose;
 	int               flags;
 	struct addrinfo  *node;
 	char              addr[INET6_ADDRSTRLEN];
-	//struct sockaddr_storage client;
+	struct sockaddr_storage client;
 };
 
-typedef struct cnct_socket_struct cnct_socket_t;
+/* structs for union of data buffer and its recv/send length */
+
+struct cnct_socket_data {
+	int     len;
+	char    data[CNCT_SOCKET_DATASIZE];
+};
+
+struct cnct_socket_data_p {
+	int      size;
+	void    *data;
+	int      len;
+};
+
+/* aliases to structs */
+
+typedef struct cnct_socket_struct  cnct_socket_t;
+typedef struct cnct_socket_data    cnct_sockdata_t;
+typedef struct cnct_socket_data_p  cnct_sockdata_p;
 
 /* *** */
 
 /* *** socket routine headers section *** */
-
-/* TODO: clean up */
-#define BREAK 1
-#define MAXDATASIZE 32*1024
-#define BACKLOG 10
 
 /* init routine */
 CNCT_EXPORT int cnct_start();
@@ -45,23 +62,22 @@ int          cnct_socket_setnonblock (socket_t sd);
 
 /* high level socket functions */
 
-CNCT_EXPORT  cnct_socket_t  *cnct_socket_create   (char *host, char *port, int type, int reuse, int autoclose, int flags);
+CNCT_EXPORT  cnct_socket_t  *cnct_socket_create   (char *host, char *port, int ipv, int type, int reuse, int autoclose, int flags);
 CNCT_EXPORT  cnct_socket_t  *cnct_socket_clone    (cnct_socket_t *sckt_src);
 CNCT_EXPORT  int             cnct_socket_delete   (cnct_socket_t *socket);
 
 CNCT_EXPORT  int             cnct_socket_sendmsg  (cnct_socket_t *socket, char *msg, int len);
-CNCT_EXPORT  int             cnct_socket_recvmsg  (cnct_socket_t *socket, char *msg);
+CNCT_EXPORT  int             cnct_socket_recvmsg  (cnct_socket_t *socket, char *msg, int len);
 
 CNCT_EXPORT  int             cnct_socket_send     (cnct_socket_t *socket, char *msg, int len);
 CNCT_EXPORT  int             cnct_socket_recv     (cnct_socket_t *socket, socket_t sd, char *msg, int len);
-CNCT_EXPORT  int             cnct_socket_recv_    (cnct_socket_t *socket, socket_t sd, char *msg);
 
 CNCT_EXPORT  socket_t        cnct_socket_connect  (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_listen   (cnct_socket_t *socket);
 CNCT_EXPORT  socket_t        cnct_socket_accept   (socket_t socket);
 CNCT_EXPORT  int             cnct_socket_shutdown (socket_t socket);
 
-CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*callback)(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage));
+CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*callback)(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage, cnct_sockdata_t));
 
 #endif /* _LIBCONNECT_H_ */
 

@@ -12,28 +12,30 @@
 	
 	/* BSD sockets API conventions */
 	
-	#define CNCT_UNIXWARE 1
-	#define CNCT_SOCKETS  "BSD"
-	#define socket_t int
-	#define cnct_socket_close(socket_t) close(socket_t)
-	#define CNCT_SHUTDOWN_RX      SHUT_RD
-	#define CNCT_SHUTDOWN_TX      SHUT_WR
-	#define CNCT_SHUTDOWN_DUPLEX  SHUT_RDWR
+	#define CNCT_UNIXWARE                1
+	#define CNCT_SOCKETS                 "BSD"
+	#define socket_t                     int
+	#define cnct_socket_close(socket_t)  close(socket_t)
+	#define CNCT_SHUTDOWN_RX             SHUT_RD
+	#define CNCT_SHUTDOWN_TX             SHUT_WR
+	#define CNCT_SHUTDOWN_DUPLEX         SHUT_RDWR
 	#define CNCT_EXPORT
+	#define CNCT_ERROR                   -1
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
 	
 	/* Winsock sockets API conventions */
 	
-	#define CNCT_WINSWARE 1
-	#define CNCT_SOCKETS  "WIN"
-	#define socket_t SOCKET
-	#define cnct_socket_close(socket_t) closesocket(socket_t)
-	#define CNCT_SHUTDOWN_RX      SD_RECEIVE
-	#define CNCT_SHUTDOWN_TX      SD_SEND
-	#define CNCT_SHUTDOWN_DUPLEX  SD_BOTH
-	#define CNCT_EXPORT __declspec(dllexport)
-	#define __func__ __FUNCTION__
+	#define CNCT_WINSWARE                1
+	#define CNCT_SOCKETS                 "WIN"
+	#define socket_t                     SOCKET
+	#define cnct_socket_close(socket_t)  closesocket(socket_t)
+	#define CNCT_SHUTDOWN_RX             SD_RECEIVE
+	#define CNCT_SHUTDOWN_TX             SD_SEND
+	#define CNCT_SHUTDOWN_DUPLEX         SD_BOTH
+	#define CNCT_EXPORT                  __declspec(dllexport)
+	#define CNCT_ERROR                   SOCKET_ERROR
+	#define __func__                     __FUNCTION__
 	
 #else
 	
@@ -119,6 +121,9 @@
 #define IF_NOT_NULL(ptr, action) \
 	if (ptr) { action; }
 
+#define SET_VALUE(var, cmp, val, def) \
+	(((cmp == val) || (cmp == def)) ? (var = cmp) : (var = def));
+
 /* TODO: CNCT_GETADDRINFO macro */
 
 /* includes */
@@ -136,6 +141,14 @@
 	if (socket->type == SOCK_STREAM) \
 		{ ret = send  (socket->sd, data + ptr, len, socket->flags); } \
 	else    { ret = sendto(socket->sd, data + ptr, len, socket->flags, socket->node->ai_addr, socket->node->ai_addrlen); }
+
+#define CNCT_RECV(socket, sd, data, ptr, len, ret) \
+	if (socket->type == SOCK_STREAM) \
+		{ ret = recv    (sd, data + ptr, len, socket->flags); } \
+	else    { \
+		  socklen_t slen; \
+		  ret = recvfrom(sd, data + ptr, len, socket->flags, (struct sockaddr *) &(socket->client), (socklen_t *) &slen); \
+	}
 
 /* *** */
 

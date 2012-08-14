@@ -57,16 +57,21 @@ int nc_client_tcp(int argc, const char *argv[])
 /* stand alone connect API based sample for socket UDP server */
 
 /* server callback */
-int your_udp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client)
+int your_udp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client, cnct_sockdata_t udp_data)
 {
 	printf("server socket: %d\n", sd);
+	
+	printf("recv msg[%d]: %s\n", udp_data.len, udp_data.data);
+	
 	char *msg = "echo server\n\0";
 	int len = strlen(msg);
 	socklen_t slen = sizeof(client);
 	sendto(sd, msg, len, 0, (struct sockaddr *) &client, slen);
+	
 	printf("---> place your code here for send/recv <----\n");
-	cnct_socket_close(sd);
+	//cnct_socket_close(sd);
 	printf("---> exit. Waiting for new connection now ... <----\n");
+	
 	return 0;
 }
 
@@ -76,7 +81,7 @@ int demo_udp_server(const char *argv[])
 	printf("starting server:\n");
 	printf("\tport: %s\n", argv[2]);
 	
-	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_UDP, 0, 0, 0);
+	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], AF_INET, SOCK_DGRAM, 0, 0, 0);
 	cnct_socket_server(sckt_server, your_udp_server);
 	cnct_socket_delete(sckt_server);
 	
@@ -86,8 +91,12 @@ int demo_udp_server(const char *argv[])
 /* stand alone connect API based sample for socket TCP server */
 
 /* server callback */
-int your_tcp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client)
+int your_tcp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client, cnct_sockdata_t udp_data)
 {
+	if (udp_data.len != -1) {
+		printf("something goes wrong\n");
+	}
+	
 	printf("server socket: %d\n", sd);
 	char *msg = "echo server\n\0";
 	int len = strlen(msg);
@@ -108,7 +117,7 @@ int demo_tcp_server(const char *argv[])
 	printf("starting server:\n");
 	printf("\tport: %s\n", argv[2]);
 	
-	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 0, 0);
+	cnct_socket_t *sckt_server = cnct_socket_create(NULL, (char *) argv[2], AF_INET, SOCK_STREAM, 0, 0, 0);
 	cnct_socket_server(sckt_server, your_tcp_server);
 	cnct_socket_delete(sckt_server);
 	
@@ -118,15 +127,32 @@ int demo_tcp_server(const char *argv[])
 /* *** *** *** *** *** *** *** *** *** */
 
 /* stand alone connect API based sample for receiving one message over TCP socket */
-int demo_recvmsg(const char *argv[])
+int demo_tcprecvmsg(const char *argv[])
 {
 	printf("receiving message:\n");
 	printf("\tport: %s\n", argv[2]);
 	
-	char *msg = (char *) malloc(32 * 1024);
-	memset(msg, '\0', 32 * 1024);
-	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, (char *) argv[2], CNCT_TCP, 0, 1, 0);
-	cnct_socket_recvmsg(sckt_recv, msg);
+	char *msg = (char *) malloc(4 * 1024);
+	memset(msg, '\0', 4 * 1024);
+	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, (char *) argv[2], AF_INET, SOCK_STREAM, 0, 1, 0);
+	cnct_socket_recvmsg(sckt_recv, msg, -1);
+	cnct_socket_delete(sckt_recv);
+	
+	printf("\tmsg: %s\n", msg);
+	
+	return 0;
+}
+
+/* stand alone connect API based sample for receiving one message over TCP socket */
+int demo_udprecvmsg(const char *argv[])
+{
+	printf("receiving message:\n");
+	printf("\tport: %s\n", argv[2]);
+	
+	char *msg = (char *) malloc(4 * 1024);
+	memset(msg, '\0', 4 * 1024);
+	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, (char *) argv[2], AF_INET, SOCK_DGRAM, 0, 1, 0);
+	cnct_socket_recvmsg(sckt_recv, msg, 4096);
 	cnct_socket_delete(sckt_recv);
 	
 	printf("\tmsg: %s\n", msg);
@@ -135,14 +161,14 @@ int demo_recvmsg(const char *argv[])
 }
 
 /* stand alone connect API based sample for sending one message over TCP socket */
-int demo_sendmsg(const char *argv[])
+int demo_tcpsendmsg(const char *argv[])
 {
 	printf("sending message:\n");
 	printf("\tmsg: %s\n", argv[2]);
 	printf("\thost: %s\n", argv[3]);
 	printf("\tport: %s\n", argv[4]);
 	
-	cnct_socket_t *socket = cnct_socket_create((char *) argv[3], (char *) argv[4], CNCT_TCP, 0, 1, 0);
+	cnct_socket_t *socket = cnct_socket_create((char *) argv[3], (char *) argv[4], AF_INET, SOCK_STREAM, 0, 1, 0);
 	cnct_socket_sendmsg(socket, (char *) argv[2], strlen(argv[2]));
 	cnct_socket_delete(socket);
 	
@@ -154,9 +180,10 @@ int usage(const char *name)
 {
 	printf("Usage: %s <sample>\n", name);
 	printf("\t<sample> - type of demo:\n");
-	printf("\t\tsendmsg text host port\n");
-	printf("\t\trecvmsg port\n");
+	printf("\t\ttcpsendmsg text host port\n");
+	printf("\t\ttcprecvmsg port\n");
 	printf("\t\ttcpserver  port\n");
+	printf("\t\tudprecvmsg port\n");
 	printf("\t\tudpserver  port\n");
 	return 0;
 }
@@ -175,12 +202,14 @@ int main(int argc, const char *argv[])
 		return usage(argv[0]);
 	}
 	
-	if ((strcmp(argv[1], "sendmsg") == 0) && (argc == 5)) {
-		demo_sendmsg(argv);
-	} else if ((strcmp(argv[1], "recvmsg") == 0) && (argc == 3)) {
-		demo_recvmsg(argv);
+	if ((strcmp(argv[1], "tcpsendmsg") == 0) && (argc == 5)) {
+		demo_tcpsendmsg(argv);
+	} else if ((strcmp(argv[1], "tcprecvmsg") == 0) && (argc == 3)) {
+		demo_tcprecvmsg(argv);
 	} else if ((strcmp(argv[1], "tcpserver") == 0) && (argc == 3)) {
 		demo_tcp_server(argv);
+	} else if ((strcmp(argv[1], "udprecvmsg") == 0) && (argc == 3)) {
+		demo_udprecvmsg(argv);
 	} else if ((strcmp(argv[1], "udpserver") == 0) && (argc == 3)) {
 		demo_udp_server(argv);
 	} else {
