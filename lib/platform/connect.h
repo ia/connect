@@ -150,6 +150,11 @@
 		  ret = recvfrom(sd, data + ptr, len, socket->flags, (struct sockaddr *) &(socket->client), (socklen_t *) &slen); \
 	}
 
+#define MALLOC_SOCKDATA(ptr, s) \
+	MALLOC_TYPE(cnct_sockdata_p, ptr) \
+	MALLOC_PNTR(ptr->data, s) \
+	ptr->size = s; ptr->len  = 0;
+
 /* *** */
 
 #endif /* _PLATFORM_H_ */

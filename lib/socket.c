@@ -155,6 +155,15 @@ int cnct_socket_setnonblock(socket_t sd)
 	return 0;
 }
 
+int cnct_sockdata_print(void *msg, int size, int len)
+{
+	MALLOC_TYPE_SIZE(char, str, size);
+	snprintf(str, len, "%s", (char *) msg);
+	printf("%s", str);
+	FREE_PNTR(str);
+	return 0;
+}
+
 /* create socket struct routine */
 cnct_socket_t *cnct_socket_create(char *host, char *port, int ipv, int type, int reuse, int autoclose, int flags)
 {
@@ -309,6 +318,7 @@ int cnct_socket_send(cnct_socket_t *socket, char *msg, int len)
 	LOG_IN;
 	
 	int r = 0;
+	int rx = len;
 	int tx = 0;
 	
 	while (tx < len) {
@@ -316,8 +326,8 @@ int cnct_socket_send(cnct_socket_t *socket, char *msg, int len)
 		if (r == -1) {
 			break;
 		}
-		tx  += r;
-		len -= r;
+		tx += r;
+		rx -= r;
 	}
 	
 	LOG_OUT;
@@ -452,26 +462,15 @@ int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 	
 	int r = 0;
 	int rx = 0;
+	int tx = len;
 	
-	if (len == -1) {
-		/* TODO: FIXME: remove */
-		/* recv as much as possible */
-		CNCT_RECV(socket, sd, msg, rx, CNCT_SOCKET_DATASIZE-1, r);
+	while (rx < len) {
+		CNCT_RECV(socket, sd, msg, rx, len, r)
 		if (r == -1) {
-			perror("recv");
-		} else {
-			rx = r;
+			break;
 		}
-	} else {
-		/* recv only specified amount of data */
-		while (rx < len) {
-			CNCT_RECV(socket, sd, msg, rx, len, r)
-			if (r == -1) {
-				break;
-			}
-			rx  += r;
-			len -= r;
-		}
+		rx += r;
+		tx -= r;
 	}
 	
 	LOG_OUT;

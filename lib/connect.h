@@ -60,6 +60,8 @@ unsigned int cnct_socket_getport     (struct sockaddr *sa);
 int          cnct_socket_getstraddr  (struct addrinfo *node, char *addr);
 int          cnct_socket_setnonblock (socket_t sd);
 
+CNCT_EXPORT  int cnct_sockdata_print(void *msg, int size, int len);
+
 /* high level socket functions */
 
 CNCT_EXPORT  cnct_socket_t  *cnct_socket_create   (char *host, char *port, int ipv, int type, int reuse, int autoclose, int flags);
