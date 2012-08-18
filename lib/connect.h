@@ -35,7 +35,7 @@ struct cnct_socket_data {
 
 struct cnct_socket_data_p {
 	int      size;
-	void    *data;
+	char    *data;
 	int      len;
 };
 
@@ -50,6 +50,7 @@ typedef struct cnct_socket_data_p  cnct_sockdata_p;
 /* *** socket routine headers section *** */
 
 /* init routine */
+
 CNCT_EXPORT int cnct_start();
 CNCT_EXPORT int cnct_finish();
 
@@ -60,7 +61,7 @@ unsigned int cnct_socket_getport     (struct sockaddr *sa);
 int          cnct_socket_getstraddr  (struct addrinfo *node, char *addr);
 int          cnct_socket_setnonblock (socket_t sd);
 
-CNCT_EXPORT  int cnct_sockdata_print(void *msg, int size, int len);
+CNCT_EXPORT  int cnct_sockdata_print (char *msg, int size, int len);
 
 /* high level socket functions */
 

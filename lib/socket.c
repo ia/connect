@@ -155,10 +155,10 @@ int cnct_socket_setnonblock(socket_t sd)
 	return 0;
 }
 
-int cnct_sockdata_print(void *msg, int size, int len)
+int cnct_sockdata_print(char *msg, int size, int len)
 {
 	MALLOC_TYPE_SIZE(char, str, size);
-	snprintf(str, len, "%s", (char *) msg);
+	snprintf(str, len, "%s", msg);
 	printf("%s", str);
 	FREE_PNTR(str);
 	return 0;
@@ -463,15 +463,36 @@ int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 	int r = 0;
 	int rx = 0;
 	int tx = len;
+	int snap = 0;
+	socklen_t slen = sizeof(struct sockaddr_storage);
 	
-	while (rx < len) {
+	if (!len) {
+		snap = 1;
+		tx = CNCT_SOCKET_DATASIZE;
+	}
+	
+	do {
+	//while (rx < len) {
+		/*
 		CNCT_RECV(socket, sd, msg, rx, len, r)
+		CNCT_RECV(socket, sd, data, ptr, len, ret)
+		ret = recvfrom(sd, data + ptr, len, socket->flags, (struct sockaddr *) &(socket->client), (socklen_t *) &slen);
+		
+		CNCT_RECV(socket, sd, msg, rx, len, r)
+		*/
+		//r = recvfrom(sd, msg + rx, tx, socket->flags, (struct sockaddr *) &(socket->client), (socklen_t *) &slen);
+		CNCT_RECV(socket, sd, msg, rx, tx, r)
+		//r = recvfrom(sd, msg + rx, tx
 		if (r == -1) {
 			break;
 		}
 		rx += r;
 		tx -= r;
-	}
+		if (snap) {
+			break;
+		}
+	//}
+	} while (rx < len);
 	
 	LOG_OUT;
 	
@@ -552,6 +573,8 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 	ld = cnct_socket_listen(socket);
 	
 	while (1) {
+		/* TODO: FIXME: wrap me completely /!\ */
+		
 		if (socket->type == SOCK_STREAM) {
 			ad = accept(ld, (struct sockaddr *) &client, &slen);
 			if (ad == -1) {

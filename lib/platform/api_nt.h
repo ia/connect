@@ -19,9 +19,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+//#include <wchar.h>
 
 #ifndef _WIN32_WINNT
 	#define _WIN32_WINNT 0x601
+#endif
+
+#ifndef __func__
+	#define __func__ __FUNCTION__
+#endif
+
+#ifndef snprintf
+	#define snprintf(args) _snprintf(args)
 #endif
 
 /* *** */

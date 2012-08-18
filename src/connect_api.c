@@ -135,7 +135,7 @@ int demo_tcprecvmsg(const char *argv[])
 	char *msg = (char *) malloc(4 * 1024);
 	memset(msg, '\0', 4 * 1024);
 	cnct_socket_t *sckt_recv = cnct_socket_create(NULL, (char *) argv[2], AF_INET, SOCK_STREAM, 0, 1, 0);
-	cnct_socket_recvmsg(sckt_recv, msg, -1);
+	cnct_socket_recvmsg(sckt_recv, msg, 0);
 	cnct_socket_delete(sckt_recv);
 	
 	printf("\tmsg: %s\n", msg);
@@ -156,7 +156,7 @@ int demo_udprecvmsg(const char *argv[])
 	cnct_socket_recvmsg(sckt_recv, msg->data, msg->len);
 	cnct_socket_delete(sckt_recv);
 	
-	printf("\twhole udp msg: %s\n", (char *) msg->data);
+	printf("\twhole udp msg: %s\n", msg->data);
 	printf("\tlen'd udp msg: ");
 	cnct_sockdata_print(msg->data, msg->size, msg->len);
 	printf("\n");

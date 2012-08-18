@@ -35,7 +35,7 @@
 	#define CNCT_SHUTDOWN_DUPLEX         SD_BOTH
 	#define CNCT_EXPORT                  __declspec(dllexport)
 	#define CNCT_ERROR                   SOCKET_ERROR
-	#define __func__                     __FUNCTION__
+//	#define __func__                     __FUNCTION__
 	
 #else
 	
@@ -146,7 +146,7 @@
 	if (socket->type == SOCK_STREAM) \
 		{ ret = recv    (sd, data + ptr, len, socket->flags); } \
 	else    { \
-		  socklen_t slen; \
+		  socklen_t slen = sizeof(struct sockaddr_storage); \
 		  ret = recvfrom(sd, data + ptr, len, socket->flags, (struct sockaddr *) &(socket->client), (socklen_t *) &slen); \
 	}
 
