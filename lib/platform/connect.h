@@ -8,11 +8,14 @@
 
 /* detect platform for sockets style type */
 
+#define CNCT_UNIXWARE_VALUE 1
+#define CNCT_WINSWARE_VALUE 2
+
 #if ( defined(__unix__) || ( defined(__APPLE__) && defined(__MACH__) ) )
 	
 	/* BSD sockets API conventions */
 	
-	#define CNCT_UNIXWARE                1
+	#define CNCT_UNIXWARE                CNCT_UNIXWARE_VALUE
 	#define CNCT_SOCKETS                 "BSD"
 	#define socket_t                     int
 	#define cnct_socket_close(socket_t)  close(socket_t)
@@ -21,12 +24,13 @@
 	#define CNCT_SHUTDOWN_DUPLEX         SHUT_RDWR
 	#define CNCT_EXPORT
 	#define CNCT_ERROR                   -1
+	#define CNCT_WARE                    CNCT_UNIXWARE
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
 	
 	/* Winsock sockets API conventions */
 	
-	#define CNCT_WINSWARE                1
+	#define CNCT_WINSWARE                CNCT_WINSWARE_VALUE
 	#define CNCT_SOCKETS                 "WIN"
 	#define socket_t                     SOCKET
 	#define cnct_socket_close(socket_t)  closesocket(socket_t)
@@ -35,6 +39,7 @@
 	#define CNCT_SHUTDOWN_DUPLEX         SD_BOTH
 	#define CNCT_EXPORT                  __declspec(dllexport)
 	#define CNCT_ERROR                   SOCKET_ERROR
+	#define CNCT_WARE                    CNCT_WINSWARE
 //	#define __func__                     __FUNCTION__
 	
 #else
@@ -42,6 +47,8 @@
 	#error "Current platform not supported"
 	
 #endif
+
+static const int cnct_ware = CNCT_WARE;
 
 #ifndef RELEASE
 	
@@ -152,8 +159,12 @@
 
 #define MALLOC_SOCKDATA(ptr, s) \
 	MALLOC_TYPE(cnct_sockdata_p, ptr) \
-	MALLOC_PNTR(ptr->data, s) \
+	MALLOC_PNTR_SIZE(char, ptr->data, s) \
 	ptr->size = s; ptr->len  = 0;
+
+#define CNCT_PACKENGINE_USR 0x0
+#define CNCT_PACKENGINE_BPF 0x1
+#define CNCT_PACKENGINE_PCP 0x2
 
 /* *** */
 

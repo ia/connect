@@ -63,7 +63,7 @@ int your_udp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage 
 	
 	printf("recv msg[%d]: %s\n", udp_data.len, udp_data.data);
 	
-	char *msg = "echo server\n\0";
+	const char *msg = "echo server\n\0";
 	int len = strlen(msg);
 	socklen_t slen = sizeof(client);
 	sendto(sd, msg, len, 0, (struct sockaddr *) &client, slen);
@@ -98,7 +98,7 @@ int your_tcp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage 
 	}
 	
 	printf("server socket: %d\n", sd);
-	char *msg = "echo server\n\0";
+	const char *msg = "echo server\n\0";
 	int len = strlen(msg);
 	send(sd, msg, len, 0);
 	printf("---> place your code here for send/recv <----\n");
@@ -179,6 +179,14 @@ int demo_tcpsendmsg(const char *argv[])
 	return 0;
 }
 
+/* stand alone connect API based sample for dumping packets */
+int demo_dump(const char *argv[])
+{
+	cnct_packet_dump(CNCT_PACKENGINE_USR);
+	cnct_packet_recv();
+	return 0;
+}
+
 /* usage helper */
 int usage(const char *name)
 {
@@ -189,6 +197,7 @@ int usage(const char *name)
 	printf("\t\ttcpserver  port\n");
 	printf("\t\tudprecvmsg port\n");
 	printf("\t\tudpserver  port\n");
+	printf("\t\tdump\n");
 	return 0;
 }
 
@@ -216,6 +225,8 @@ int main(int argc, const char *argv[])
 		demo_udprecvmsg(argv);
 	} else if ((strcmp(argv[1], "udpserver") == 0) && (argc == 3)) {
 		demo_udp_server(argv);
+	} else if (strcmp(argv[1], "dump") == 0) {
+		demo_dump(argv);
 	} else {
 		return usage(argv[0]);
 	}

@@ -464,7 +464,7 @@ int cnct_socket_recv(cnct_socket_t *socket, socket_t sd, char *msg, int len)
 	int rx = 0;
 	int tx = len;
 	int snap = 0;
-	socklen_t slen = sizeof(struct sockaddr_storage);
+	//socklen_t slen = sizeof(struct sockaddr_storage);
 	
 	if (!len) {
 		snap = 1;
