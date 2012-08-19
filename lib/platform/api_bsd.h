@@ -21,6 +21,9 @@
 #include <linux/if_ether.h>
 #include <net/if.h>
 
+//#include <linux/in.h>
+#include <linux/filter.h>
+
 /*
 #if ( !defined(CNCT_INCLUDE_PACKET) && ( !defined(CNCT_INCLUDE_SOCKET) ) )
 	#error "define packet/socket includes"

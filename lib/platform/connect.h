@@ -24,7 +24,9 @@
 	#define CNCT_SHUTDOWN_DUPLEX         SHUT_RDWR
 	#define CNCT_EXPORT
 	#define CNCT_ERROR                   -1
+	#define CNCT_INVALID                 -1
 	#define CNCT_WARE                    CNCT_UNIXWARE
+	#define CNCT_SOCKET_RAW              PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
 	
@@ -39,7 +41,9 @@
 	#define CNCT_SHUTDOWN_DUPLEX         SD_BOTH
 	#define CNCT_EXPORT                  __declspec(dllexport)
 	#define CNCT_ERROR                   SOCKET_ERROR
+	#define CNCT_INVALID                 INVALID_SOCKET
 	#define CNCT_WARE                    CNCT_WINSWARE
+	#define CNCT_SOCKET_RAW              AF_INET, SOCK_RAW, IPPROTO_RAW
 //	#define __func__                     __FUNCTION__
 	
 #else
@@ -47,6 +51,8 @@
 	#error "Current platform not supported"
 	
 #endif
+
+#define cnct_socket_raw() socket(CNCT_SOCKET_RAW)
 
 static const int cnct_ware = CNCT_WARE;
 

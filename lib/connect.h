@@ -86,12 +86,10 @@ CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*ca
 
 CNCT_EXPORT  int             cnct_packet_socket ();
 CNCT_EXPORT  int             cnct_packet_recv   ();
-CNCT_EXPORT  int             cnct_packet_dump   (int engine_type);
+CNCT_EXPORT  int             cnct_packet_dump   (int engine, char *rule);
 CNCT_EXPORT  int             cnct_packet_print  ();
 
-
 /* network interfaces functions */
-
 
 
 #endif /* _LIBCONNECT_H_ */

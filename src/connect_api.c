@@ -179,11 +179,18 @@ int demo_tcpsendmsg(const char *argv[])
 	return 0;
 }
 
-/* stand alone connect API based sample for dumping packets */
-int demo_dump(const char *argv[])
+/* stand alone connect API based sample for dumping packets using BPF*/
+int demo_bpfdump(const char *argv[])
 {
-	cnct_packet_dump(CNCT_PACKENGINE_USR);
-	cnct_packet_recv();
+	cnct_packet_dump(CNCT_PACKENGINE_BPF, NULL);
+	return 0;
+}
+
+/* stand alone connect API based sample for dumping packets using raw socket */
+int demo_usrdump(const char *argv[])
+{
+	cnct_packet_dump(CNCT_PACKENGINE_USR, NULL);
+	//cnct_packet_recv();
 	return 0;
 }
 
@@ -197,7 +204,8 @@ int usage(const char *name)
 	printf("\t\ttcpserver  port\n");
 	printf("\t\tudprecvmsg port\n");
 	printf("\t\tudpserver  port\n");
-	printf("\t\tdump\n");
+	printf("\t\tbpfdump\n");
+	printf("\t\tusrdump\n");
 	return 0;
 }
 
@@ -225,8 +233,10 @@ int main(int argc, const char *argv[])
 		demo_udprecvmsg(argv);
 	} else if ((strcmp(argv[1], "udpserver") == 0) && (argc == 3)) {
 		demo_udp_server(argv);
-	} else if (strcmp(argv[1], "dump") == 0) {
-		demo_dump(argv);
+	} else if (strcmp(argv[1], "bpfdump") == 0) {
+		demo_bpfdump(argv);
+	} else if (strcmp(argv[1], "usrdump") == 0) {
+		demo_usrdump(argv);
 	} else {
 		return usage(argv[0]);
 	}

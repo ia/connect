@@ -529,7 +529,7 @@ struct thread_data {
 	socket_t sd;
 	struct sockaddr_storage client;
 	cnct_sockdata_t udp_data;
-	int (*cb)(cnct_socket_t *, socket_t, sockaddr_storage, cnct_sockdata_t);
+	int (*cb)(cnct_socket_t *, socket_t, struct sockaddr_storage, cnct_sockdata_t);
 };
 
 DWORD WINAPI cnct_socket_request(void *data)
