@@ -51,7 +51,7 @@ int cnct_packet_recv(socket_t rs)
 		memset(packet, '\0', cnct_mtu);
 		rx = recvfrom(rs, packet, cnct_mtu, 0, NULL, NULL);
 		cnct_packet_print(packet, rx);
-		break;
+		//break;
 	}
 	
 	return 0;
@@ -59,6 +59,7 @@ int cnct_packet_recv(socket_t rs)
 
 int cnct_filter_bpf(socket_t sd)
 {
+#ifdef CNCT_UNIXWARE
 	struct sock_filter bpf[] = {
 		{ 0x6, 0, 0, 0x0000ffff }
 	};
@@ -72,7 +73,7 @@ int cnct_filter_bpf(socket_t sd)
 		cnct_socket_close(sd);
 		return -1;
 	}
-	
+#endif
 	return 0;
 }
 
