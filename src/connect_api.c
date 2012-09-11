@@ -217,7 +217,7 @@ int main(int argc, const char *argv[])
 	/* in case of Winsock - WSAStartup routine required */
 	cnct_start();
 	
-	DBG_INFO(printf("platform: %s\n", CNCT_SOCKETS));
+	DBG_INFO(printf("API sockets style: %s\n", CNCT_SOCKETS));
 	
 	if (argc < 2) {
 		return usage(argv[0]);

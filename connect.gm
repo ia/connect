@@ -38,9 +38,27 @@ BINS_EXT = stat
 
 ### library files management section
 
+ifeq ($(SYS),osx)
+	LIB_SOCKET   = $(LIB_DIR)/platform/sys_osx.c
+	LIB_SOCKET_O = sys_osx.o
+	CFLAGS      += -DSYS_OSX
+else ifeq ($(SYS),bsd)
+	LIB_SOCKET   = $(LIB_DIR)/platform/sys_bsd.c
+	LIB_SOCKET_O = sys_bsd.o
+	CFLAGS      += -DSYS_BSD
+else ifeq ($(SYS),bsd)
+	LIB_SOCKET   = $(LIB_DIR)/platform/sys_nt.c
+	LIB_SOCKET_O = sys_nt.o
+	CFLAGS      += -DSYS_NT
+else
+	LIB_SOCKET   = $(LIB_DIR)/platform/sys_linux.c
+	LIB_SOCKET_O = sys_linux.o
+	CFLAGS      += -DSYS_LINUX
+endif
+
 # library sources
-LIB_SOCKET   = $(LIB_DIR)/socket.c $(LIB_DIR)/packet.c
-LIB_SOCKET_O = socket.o packet.o
+LIB_SOCKET   += $(LIB_DIR)/socket.c $(LIB_DIR)/packet.c
+LIB_SOCKET_O += socket.o packet.o
 
 # binary sources
 BIN_SRC = $(SRC_DIR)/connect_api.c

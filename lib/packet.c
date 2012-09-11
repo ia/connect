@@ -56,7 +56,7 @@ int cnct_packet_recv(socket_t rs)
 	
 	return 0;
 }
-
+/*
 int cnct_filter_bpf(socket_t sd)
 {
 #ifdef CNCT_UNIXWARE
@@ -76,7 +76,7 @@ int cnct_filter_bpf(socket_t sd)
 #endif
 	return 0;
 }
-
+*/
 int cnct_filter_pcp()
 {
 	return 0;

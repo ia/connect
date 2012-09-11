@@ -139,14 +139,6 @@ static const int cnct_ware = CNCT_WARE;
 
 /* TODO: CNCT_GETADDRINFO macro */
 
-/* includes */
-
-#ifdef CNCT_UNIXWARE
-	#include "api_bsd.h"
-#else
-	#include "api_nt.h"
-#endif
-
 #define CNCT_TCP SOCK_STREAM
 #define CNCT_UDP SOCK_DGRAM
 
@@ -171,6 +163,28 @@ static const int cnct_ware = CNCT_WARE;
 #define CNCT_PACKENGINE_USR 0x0
 #define CNCT_PACKENGINE_BPF 0x1
 #define CNCT_PACKENGINE_PCP 0x2
+
+#define CNCT_BPF_PCKT { 0x6, 0, 0, 0x0000ffff }
+
+/* includes */
+
+#ifdef CNCT_UNIXWARE
+	#include "api_bsd.h"
+#else
+	#include "api_nt.h"
+#endif
+
+#ifdef SYS_LINUX
+	#include "sys_linux.h"
+#elif defined SYS_BSD
+	#include "sys_bsd.h"
+#elif defined SYS_OSX
+	#include "sys_osx.h"
+#elif defined SYS_NT
+	#include "sys_nt.h"
+#else
+	#error "define SYS_NAME manually"
+#endif
 
 /* *** */
 
