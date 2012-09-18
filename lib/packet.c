@@ -1,7 +1,7 @@
 
 #include "connect.h"
 
-#define cnct_mtu 1500
+#define cnct_mtu 64*1024
 
 int cnct_packet_print(char *packet, int len)
 {
@@ -104,8 +104,10 @@ int cnct_packet_dump(int type, char *rule)
 		cnct_filter_bpf(rs);
 	} else if (type == CNCT_PACKENGINE_PCP) {
 		cnct_filter_pcp(rule);
-	} else {
+	} else if (type == CNCT_PACKENGINE_USR) {
 		;
+	} else {
+		printf("type not supported\n");
 	}
 	
 	cnct_packet_recv(rs);

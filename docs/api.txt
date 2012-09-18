@@ -36,7 +36,7 @@ cnct_clean
 files:
 
 socket.c
-rawskt.c
-packet.c (filter, save)
+filter.c
+packet.c
 status.c
 
