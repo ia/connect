@@ -1,9 +1,9 @@
 #!/usr/bin/make -f
 
 # UNIX platform detection - takes from environment directly
-# e.g., PLATFORM=osx make -f connect.gm
+# e.g., SYS=osx make -f connect.gm
 
-ifeq ($(PLATFORM),osx)
+ifeq ($(SYS),osx)
 	LIBD_EXT := dylib
 	LIBS_EXT := A.dylib
 else
@@ -13,10 +13,6 @@ endif
 
 ifeq ($(RELEASE),1)
 	CFLAGS   += -DRELEASE
-	LIBS_EXT := A.dylib
-else
-	LIBD_EXT := so
-	LIBS_EXT := a
 endif
 
 ### general variables section

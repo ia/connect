@@ -7,15 +7,23 @@
 #endif
 
 /* detect platform for sockets style type */
-
+/*
 #define CNCT_UNIXWARE_VALUE 1
 #define CNCT_WINSWARE_VALUE 2
+*/
+#define CNCT_API_BSD_TYPE   1
+#define CNCT_API_NT_TYPE    2
+
+#define CNCT_SYS_LINUX     11
+#define CNCT_SYS_BSD       12
+#define CNCT_SYS_OSX       13
+#define CNCT_SYS_NT        14
 
 #if ( defined(__unix__) || ( defined(__APPLE__) && defined(__MACH__) ) )
 	
 	/* BSD sockets API conventions */
 	
-	#define CNCT_UNIXWARE                CNCT_UNIXWARE_VALUE
+	#define CNCT_API_BSD                 CNCT_API_BSD_TYPE
 	#define CNCT_SOCKETS                 "BSD"
 	#define socket_t                     int
 	#define cnct_socket_close(socket_t)  close(socket_t)
@@ -25,14 +33,13 @@
 	#define CNCT_EXPORT
 	#define CNCT_ERROR                   -1
 	#define CNCT_INVALID                 -1
-	#define CNCT_WARE                    CNCT_UNIXWARE
 	#define CNCT_SOCKET_RAW              PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
 	
 	/* Winsock sockets API conventions */
 	
-	#define CNCT_WINSWARE                CNCT_WINSWARE_VALUE
+	#define CNCT_API_NT                  CNCT_API_NT_TYPE
 	#define CNCT_SOCKETS                 "WIN"
 	#define socket_t                     SOCKET
 	#define cnct_socket_close(socket_t)  closesocket(socket_t)
@@ -42,9 +49,7 @@
 	#define CNCT_EXPORT                  __declspec(dllexport)
 	#define CNCT_ERROR                   SOCKET_ERROR
 	#define CNCT_INVALID                 INVALID_SOCKET
-	#define CNCT_WARE                    CNCT_WINSWARE
 	#define CNCT_SOCKET_RAW              AF_INET, SOCK_RAW, IPPROTO_RAW
-//	#define __func__                     __FUNCTION__
 	
 #else
 	
@@ -53,8 +58,6 @@
 #endif
 
 #define cnct_socket_raw() socket(CNCT_SOCKET_RAW)
-
-static const int cnct_ware = CNCT_WARE;
 
 #ifndef RELEASE
 	
@@ -168,25 +171,34 @@ static const int cnct_ware = CNCT_WARE;
 
 /* includes */
 
-#ifdef CNCT_UNIXWARE
+#ifdef CNCT_API_BSD
+	#define  CNCT_API CNCT_API_BSD
 	#include "api_bsd.h"
 #else
+	#define  CNCT_API CNCT_API_NT
 	#include "api_nt.h"
 #endif
 
 #ifdef SYS_LINUX
+	#define  CNCT_SYS CNCT_SYS_LINUX
 	#include "sys_linux.h"
 #elif defined SYS_BSD
+	#define  CNCT_SYS CNCT_SYS_BSD
 	#include "sys_bsd.h"
 #elif defined SYS_OSX
+	#define  CNCT_SYS CNCT_SYS_OSX
 	#include "sys_osx.h"
 #elif defined SYS_NT
+	#define  CNCT_SYS CNCT_SYS_NT
 	#include "sys_nt.h"
 #else
 	#error "define SYS_NAME manually"
 #endif
 
 /* *** */
+
+static const int cnct_api = CNCT_API;
+static const int cnct_sys = CNCT_SYS;
 
 #endif /* _PLATFORM_H_ */
 

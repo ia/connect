@@ -19,7 +19,7 @@ int cnct_start()
 {
 	LOG_IN;
 	
-#ifdef CNCT_WINSWARE
+#ifdef CNCT_API_NT
 	
 	WORD wsa_version;
 	WSADATA wsa_data;
@@ -43,7 +43,7 @@ int cnct_start()
 	
 	DBG_ON(printf("_WIN32_WINNT: 0x%x\n", _WIN32_WINNT));
 	
-#endif /* CNCT_WINSWARE */
+#endif /* CNCT_API_NT */
 	
 	DBG_ON(printf("build revision: %d\n", CNCT_BUILDREV));
 	
@@ -57,11 +57,11 @@ int cnct_finish()
 {
 	LOG_IN;
 	
-#ifdef CNCT_WINSWARE
+#ifdef CNCT_API_NT
 	
 	WSACleanup();
 	
-#endif /* CNCT_WINSWARE */
+#endif /* CNCT_API_NT */
 	
 	LOG_OUT;
 	
@@ -106,7 +106,7 @@ int cnct_socket_getstraddr(struct addrinfo *node, char *addr)
 	/* clean up buffer */
 	memset(addr, '\0', INET6_ADDRSTRLEN);
 	
-#ifdef CNCT_UNIXWARE
+#ifdef CNCT_API_BSD
 	
 	inet_ntop(node->ai_family, cnct_socket_getaddr((struct sockaddr *)node->ai_addr), addr, node->ai_addrlen);
 	
@@ -119,7 +119,7 @@ int cnct_socket_getstraddr(struct addrinfo *node, char *addr)
 		InetNtop(node->ai_family, cnct_socket_getaddr((struct sockaddr *) node->ai_addr), addr, node->ai_addrlen);
 	#endif /* MINGW */
 	
-#endif /* CNCT_UNIXWARE */
+#endif /* CNCT_API_BSD */
 	
 	LOG_OUT;
 	
@@ -131,7 +131,7 @@ int cnct_socket_setnonblock(socket_t sd)
 {
 	LOG_IN;
 	
-#ifdef CNCT_UNIXWARE
+#ifdef CNCT_API_BSD
 	
 	int flags, s;
 	
@@ -148,7 +148,7 @@ int cnct_socket_setnonblock(socket_t sd)
 		return -1;
 	}
 	
-#endif /* CNCT_UNIXWARE */
+#endif /* CNCT_API_BSD */
 	
 	LOG_OUT;
 	
@@ -520,7 +520,7 @@ int cnct_socket_recvmsg(cnct_socket_t *socket, char *msg, int len)
 	return rx;
 }
 
-#ifdef CNCT_WINSWARE
+#ifdef CNCT_API_NT
 
 /* required routine for WinSock callback support */
 
@@ -582,7 +582,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 				continue;
 			}
 			
-		#ifdef CNCT_UNIXWARE
+		#ifdef CNCT_API_BSD
 			
 			if (!fork()) {
 				cnct_socket_close(ld);
@@ -621,7 +621,7 @@ int cnct_socket_server(cnct_socket_t *socket, int (*callback)(cnct_socket_t *, s
 			}
 			udp_data.len = ad;
 		
-		#ifdef CNCT_UNIXWARE
+		#ifdef CNCT_API_BSD
 			
 			if (!fork()) {
 				(*callback)(socket, ld, client, udp_data);

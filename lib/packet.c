@@ -26,7 +26,7 @@ int cnct_packet_promisc()
 socket_t cnct_packet_socket(int engine)
 {
 	int rs;
-#ifdef CNCT_UNIXWARE
+#ifdef CNCT_API_BSD
 	if (engine == CNCT_PACKENGINE_BPF) {
 		rs = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP));
 	} else
@@ -86,14 +86,27 @@ int cnct_packet_dump(int type, char *rule)
 {
 	LOG_IN;
 	
+	/*
+	 * doing the following things here:
+	 * - rule exists? using PCAP
+	 * - no rule?
+	 *  -- using TYPE, but:
+	 *  --- BPF on NT? NO. _USR only
+	 *  --- USR on BSD/OSX? NO. _BPF only
+	 */
+	
 	socket_t rs;
 	
 	if (rule) {
 		type = CNCT_PACKENGINE_PCP;
 	}
 	
-	if ((cnct_ware == CNCT_WINSWARE_VALUE) && (type == CNCT_PACKENGINE_BPF)) {
+	if ((cnct_api == CNCT_API_NT_TYPE) && (type == CNCT_PACKENGINE_BPF)) {
 		type = CNCT_PACKENGINE_USR;
+	}
+	
+	if (((cnct_sys == CNCT_SYS_BSD) || (cnct_sys == CNCT_SYS_OSX)) && (type == CNCT_PACKENGINE_USR)) {
+		type = CNCT_PACKENGINE_BPF;
 	}
 	
 	if (type != CNCT_PACKENGINE_PCP) {
