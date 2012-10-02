@@ -30,7 +30,7 @@
 #endif
 
 #ifndef snprintf
-	#define snprintf(fmt, ...) _snprintf(fmt ##__VA_ARGS__)
+	#define snprintf(fmt, ...) _snprintf(fmt, ##__VA_ARGS__)
 #endif
 
 

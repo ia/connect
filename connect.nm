@@ -4,7 +4,7 @@ CC  = cl /nologo
 CXX = cl /nologo /TP
 LBD = lib /nologo
 
-CFLAGS = /EHsc
+CFLAGS = /EHsc /DSYS_NT
 
 LIB_DIR=lib
 SRC_DIR=src
@@ -16,8 +16,8 @@ OUT_BIN_DIR=$(OUT_DIR)
 DIST_DIR=dist
 
 LIB_NAME=connect
-LIB_CONNECT=$(LIB_DIR)\socket.c          # add lib source files here
-LIB_CONNECT_O=$(OUT_LIB_DIR)\socket.obj  # add obj binary files here
+LIB_CONNECT=$(LIB_DIR)\socket.c $(LIB_DIR)\packet.c $(LIB_DIR)\platform\sys_nt.c  # add lib source files here
+LIB_CONNECT_O=$(OUT_LIB_DIR)\socket.obj $(OUT_LIB_DIR)\packet.obj $(OUT_LIB_DIR)\sys_nt.obj  # add obj binary files here
 
 BIN_SRC=$(SRC_DIR)\connect_api.c          # add bin source files here for input
 BIN=$(SRC_DIR)\connect_api                # add binary files here for output compilation
@@ -40,20 +40,20 @@ dir: clean
 
 lib-dynamic: dir $(LIB_CONNECT)
 	@echo " LD " $@
-	$(CXX) $(LIB_CONNECT) /EHsc /LD /Fe$(OUT_LIB_DIR)\$(LIB_NAME) /Fo$(OUT_LIB_DIR)\\
+	$(CXX) $(LIB_CONNECT) $(CFLAGS) /LD /Fe$(OUT_LIB_DIR)\$(LIB_NAME) /Fo$(OUT_LIB_DIR)\\
 
 lib-static: $(LIB_CONNECT)
 	@echo " LS " $@
-	$(CXX) /c $(LIB_CONNECT) /Fo$(OUT_LIB_DIR)\\
+	$(CXX) /c $(LIB_CONNECT) $(CFLAGS) /Fo$(OUT_LIB_DIR)\\
 	$(LBD) $(LIB_CONNECT_O) /OUT:$(OUT_LIB_DIR)\$(LIB_NAME)S.lib
 
 bin-dynamic: lib-dynamic $(BIN_SRC)
 	@echo " CD " $@
-	$(CXX) $(SRC_DIR)\connect_api.c /Fe$(OUT_BIN_DIR)\connect_api.exe /Fo$(OUT_BIN_DIR)\\ /link $(OUT_LIB_DIR)\$(LIB_NAME).lib
+	$(CXX) $(SRC_DIR)\connect_api.c $(CFLAGS) /Fe$(OUT_BIN_DIR)\connect_api.exe /Fo$(OUT_BIN_DIR)\\ /link $(OUT_LIB_DIR)\$(LIB_NAME).lib
 
 bin-static: lib-static $(BIN_SRC)
 	@echo " CS " $@
-	$(CXX) /EHsc $(SRC_DIR)\connect_api.c /Fe$(OUT_BIN_DIR)\connect_api_static.exe /Fo$(OUT_BIN_DIR)\\ /link $(OUT_LIB_DIR)\$(LIB_NAME)S.lib
+	$(CXX) /EHsc $(SRC_DIR)\connect_api.c $(CFLAGS) /Fe$(OUT_BIN_DIR)\connect_api_static.exe /Fo$(OUT_BIN_DIR)\\ /link $(OUT_LIB_DIR)\$(LIB_NAME)S.lib
 
 run-dynamic: lib-dynamic bin-dynamic
 	@echo " RD " $@

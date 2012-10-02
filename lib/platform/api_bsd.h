@@ -28,7 +28,7 @@
 
 //#include <linux/in.h>
 
-int cnct_filter_bpf(char *iface, int rs);
+//int cnct_filter_bpf(char *iface, int rs);
 
 /*
 #if ( !defined(CNCT_INCLUDE_PACKET) && ( !defined(CNCT_INCLUDE_SOCKET) ) )

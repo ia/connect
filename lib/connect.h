@@ -89,6 +89,8 @@ CNCT_EXPORT  int             cnct_packet_recv   ();
 CNCT_EXPORT  int             cnct_packet_dump   (int engine, char *iface, char *rule);
 CNCT_EXPORT  int             cnct_packet_print  ();
 
+CNCT_EXPORT  int             cnct_filter_bpf    (char *iface, socket_t sd);
+
 /* network interfaces functions */
 
 

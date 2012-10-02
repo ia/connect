@@ -85,7 +85,7 @@ int cnct_filter_bpf(socket_t sd)
 	return 0;
 }
 */
-int cnct_filter_pcp()
+int cnct_filter_pcp(char *rule)
 {
 	return 0;
 }
@@ -120,9 +120,12 @@ int cnct_packet_dump(int type, char *iface, char *rule)
 	}
 	
 	//if (((cnct_sys == CNCT_SYS_BSD_T) || (cnct_sys == CNCT_SYS_OSX_T)) && (type == CNCT_PACKENGINE_USR)) {
-	if (((cnct_sys == CNCT_SYS_OSX_T)) && (type == CNCT_PACKENGINE_USR)) {
+	//if (((cnct_sys == CNCT_SYS_OSX_T)) && (type == CNCT_PACKENGINE_USR)) {
+	/*
+	if (type == CNCT_PACKENGINE_USR) {
 		type = CNCT_PACKENGINE_BPF;
 	}
+	*/
 	
 	if (type != CNCT_PACKENGINE_PCP) {
 		if ((rs = cnct_packet_socket(type)) == CNCT_INVALID) {

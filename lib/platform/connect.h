@@ -182,23 +182,25 @@
 #ifdef SYS_LINUX
 	#define  CNCT_SYS_LINUX CNCT_SYS_LINUX_T
 	#define  CNCT_SYS       CNCT_SYS_LINUX
-	#warning "TARGET: CNCT_SYS_LINUX"
+	//#warning "TARGET: CNCT_SYS_LINUX"
+	#include <linux/filter.h>
 	#define CNCT_SOCKET_RAW    PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 	//#include "sys_linux.h"
 #elif defined SYS_BSD
 	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
 	#define  CNCT_SYS       CNCT_SYS_BSD
-	#warning "TARGET: CNCT_SYS_BSD"
+	#include <net/bpf.h>
+	//#warning "TARGET: CNCT_SYS_BSD"
 	//#include "sys_bsd.h"
 #elif defined SYS_OSX
 	#define  CNCT_SYS_OSX   CNCT_SYS_OSX_T
 	#define  CNCT_SYS       CNCT_SYS_OSX
-	#warning "TARGET: CNCT_SYS_OSX"
+	//#warning "TARGET: CNCT_SYS_OSX"
 	//#include "sys_osx.h"
 #elif defined SYS_NT
 	#define  CNCT_SYS_NT    CNCT_SYS_NT_T
 	#define  CNCT_SYS       CNCT_SYS_NT
-	#warning "TARGET: CNCT_SYS_NT"
+	//#warning "TARGET: CNCT_SYS_NT"
 	//#include "sys_nt.h"
 #else
 	#error "define SYS_NAME manually"

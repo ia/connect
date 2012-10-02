@@ -2,7 +2,7 @@
 #include "../connect.h"
 
 //#include <linux/if_ether.h>
-#include <linux/filter.h>
+//#include <linux/filter.h>
 
 int cnct_filter_bpf(char *iface, socket_t sd)
 {
