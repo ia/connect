@@ -1,7 +1,10 @@
 
 #include "../connect.h"
 
-int cnct_filter_bpf(socket_t sd)
+//#include <linux/if_ether.h>
+#include <linux/filter.h>
+
+int cnct_filter_bpf(char *iface, socket_t sd)
 {
 	struct sock_filter bpf[] = { CNCT_BPF_PCKT };
 	struct sock_fprog fprog;
@@ -12,7 +15,7 @@ int cnct_filter_bpf(socket_t sd)
 	if (setsockopt(sd, SOL_SOCKET, SO_ATTACH_FILTER, &fprog, sizeof(fprog)) < 0) {
 		perror("setsockopt");
 		cnct_socket_close(sd);
-		return -1;
+		return CNCT_ERROR;
 	}
 	
 	return 0;

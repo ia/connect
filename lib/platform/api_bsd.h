@@ -13,16 +13,22 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
+#include <err.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/if_ether.h>
 #include <netdb.h>
 
-#include <linux/if_ether.h>
+//#include <linux/if_ether.h>
 #include <net/if.h>
+//#include <linux/filter.h>
+
+#include <net/ethernet.h>
 
 //#include <linux/in.h>
-#include <linux/filter.h>
+
+int cnct_filter_bpf(char *iface, int rs);
 
 /*
 #if ( !defined(CNCT_INCLUDE_PACKET) && ( !defined(CNCT_INCLUDE_SOCKET) ) )

@@ -25,8 +25,10 @@ int cnct_packet_promisc()
 
 socket_t cnct_packet_socket(int engine)
 {
+	LOG_IN;
+	
 	int rs;
-#ifdef CNCT_API_BSD
+#ifdef CNCT_SYS_LINUX
 	if (engine == CNCT_PACKENGINE_BPF) {
 		rs = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP));
 	} else
@@ -35,14 +37,18 @@ socket_t cnct_packet_socket(int engine)
 	
 	if (rs == CNCT_INVALID) {
 		perror("socket");
-		return -1;
+		LOG_OUT_RET(-1);
 	}
+	
+	LOG_OUT;
 	
 	return rs;
 }
 
 int cnct_packet_recv(socket_t rs)
 {
+	LOG_IN;
+	
 	int rx = 0;
 	
 	MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
@@ -53,6 +59,8 @@ int cnct_packet_recv(socket_t rs)
 		cnct_packet_print(packet, rx);
 		//break;
 	}
+	
+	LOG_OUT;
 	
 	return 0;
 }
@@ -82,7 +90,7 @@ int cnct_filter_pcp()
 	return 0;
 }
 
-int cnct_packet_dump(int type, char *rule)
+int cnct_packet_dump(int type, char *iface, char *rule)
 {
 	LOG_IN;
 	
@@ -95,6 +103,12 @@ int cnct_packet_dump(int type, char *rule)
 	 *  --- USR on BSD/OSX? NO. _BPF only
 	 */
 	
+	/*
+		linux   : usr bpf pcp
+		bsd/osx : ??? bpf pcp
+		win     : usr --- pcp
+	*/
+	
 	socket_t rs;
 	
 	if (rule) {
@@ -105,22 +119,30 @@ int cnct_packet_dump(int type, char *rule)
 		type = CNCT_PACKENGINE_USR;
 	}
 	
-	if (((cnct_sys == CNCT_SYS_BSD) || (cnct_sys == CNCT_SYS_OSX)) && (type == CNCT_PACKENGINE_USR)) {
+	//if (((cnct_sys == CNCT_SYS_BSD_T) || (cnct_sys == CNCT_SYS_OSX_T)) && (type == CNCT_PACKENGINE_USR)) {
+	if (((cnct_sys == CNCT_SYS_OSX_T)) && (type == CNCT_PACKENGINE_USR)) {
 		type = CNCT_PACKENGINE_BPF;
 	}
 	
 	if (type != CNCT_PACKENGINE_PCP) {
-		rs = cnct_packet_socket(type);
+		if ((rs = cnct_packet_socket(type)) == CNCT_INVALID) {
+			printf("error: can't set socket for dump\n");
+			return 1;
+		}
 	}
 	
 	if (type == CNCT_PACKENGINE_BPF) {
-		cnct_filter_bpf(rs);
+		if (cnct_filter_bpf(iface, rs) == CNCT_ERROR) {
+			printf("error: can't set BPF filter\n");
+			return CNCT_ERROR;
+		}
 	} else if (type == CNCT_PACKENGINE_PCP) {
 		cnct_filter_pcp(rule);
 	} else if (type == CNCT_PACKENGINE_USR) {
 		;
 	} else {
 		printf("type not supported\n");
+		return 1;
 	}
 	
 	cnct_packet_recv(rs);

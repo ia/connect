@@ -45,7 +45,8 @@ int cnct_start()
 	
 #endif /* CNCT_API_NT */
 	
-	DBG_ON(printf("build revision: %d\n", CNCT_BUILDREV));
+	/* TODO: FIXME */
+	//DBG_ON(printf("build revision: %d\n", CNCT_BUILDREV));
 	
 	LOG_OUT;
 	

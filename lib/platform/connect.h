@@ -14,10 +14,10 @@
 #define CNCT_API_BSD_TYPE   1
 #define CNCT_API_NT_TYPE    2
 
-#define CNCT_SYS_LINUX     11
-#define CNCT_SYS_BSD       12
-#define CNCT_SYS_OSX       13
-#define CNCT_SYS_NT        14
+#define CNCT_SYS_LINUX_T   11
+#define CNCT_SYS_BSD_T     12
+#define CNCT_SYS_OSX_T     13
+#define CNCT_SYS_NT_T      14
 
 #if ( defined(__unix__) || ( defined(__APPLE__) && defined(__MACH__) ) )
 	
@@ -33,7 +33,7 @@
 	#define CNCT_EXPORT
 	#define CNCT_ERROR                   -1
 	#define CNCT_INVALID                 -1
-	#define CNCT_SOCKET_RAW              PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
+	//#define CNCT_SOCKET_RAW              PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 	
 #elif ( defined(_WIN32) || defined(_WIN64) )
 	
@@ -180,19 +180,32 @@
 #endif
 
 #ifdef SYS_LINUX
-	#define  CNCT_SYS CNCT_SYS_LINUX
-	#include "sys_linux.h"
+	#define  CNCT_SYS_LINUX CNCT_SYS_LINUX_T
+	#define  CNCT_SYS       CNCT_SYS_LINUX
+	#warning "TARGET: CNCT_SYS_LINUX"
+	#define CNCT_SOCKET_RAW    PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
+	//#include "sys_linux.h"
 #elif defined SYS_BSD
-	#define  CNCT_SYS CNCT_SYS_BSD
-	#include "sys_bsd.h"
+	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
+	#define  CNCT_SYS       CNCT_SYS_BSD
+	#warning "TARGET: CNCT_SYS_BSD"
+	//#include "sys_bsd.h"
 #elif defined SYS_OSX
-	#define  CNCT_SYS CNCT_SYS_OSX
-	#include "sys_osx.h"
+	#define  CNCT_SYS_OSX   CNCT_SYS_OSX_T
+	#define  CNCT_SYS       CNCT_SYS_OSX
+	#warning "TARGET: CNCT_SYS_OSX"
+	//#include "sys_osx.h"
 #elif defined SYS_NT
-	#define  CNCT_SYS CNCT_SYS_NT
-	#include "sys_nt.h"
+	#define  CNCT_SYS_NT    CNCT_SYS_NT_T
+	#define  CNCT_SYS       CNCT_SYS_NT
+	#warning "TARGET: CNCT_SYS_NT"
+	//#include "sys_nt.h"
 #else
 	#error "define SYS_NAME manually"
+#endif
+
+#ifndef CNCT_SOCKET_RAW
+	#define CNCT_SOCKET_RAW    AF_INET, SOCK_RAW, IPPROTO_RAW
 #endif
 
 /* *** */

@@ -86,7 +86,7 @@ CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*ca
 
 CNCT_EXPORT  socket_t        cnct_packet_socket (int engine);
 CNCT_EXPORT  int             cnct_packet_recv   ();
-CNCT_EXPORT  int             cnct_packet_dump   (int engine, char *rule);
+CNCT_EXPORT  int             cnct_packet_dump   (int engine, char *iface, char *rule);
 CNCT_EXPORT  int             cnct_packet_print  ();
 
 /* network interfaces functions */
