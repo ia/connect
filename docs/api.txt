@@ -40,3 +40,20 @@ filter.c
 packet.c
 status.c
 
+---------------------------------------------
+	cnct_packet_ API design plans:
+
+dump {
+	/* init socket */
+	
+	_usr
+	_bpf
+	_pcp
+	
+	/* get one packet */
+	
+	packet = recv(socket)
+	callback(packet)
+	
+}
+

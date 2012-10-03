@@ -3,7 +3,7 @@
 
 #define cnct_mtu 64*1024
 
-int cnct_packet_print(char *packet, int len)
+int cnct_packet_print(char *packet, int proto, int len)
 {
 	/* TODO: FIXME: if proto == IPPROTO_IP && cnct_sys == LINUX { seek packet to IP header before process } */
 	int i;
@@ -46,7 +46,7 @@ socket_t cnct_packet_socket(int engine, int proto)
 	return rs;
 }
 
-int cnct_packet_recv(socket_t rs)
+int cnct_packet_recv(socket_t rs, int proto)
 {
 	LOG_IN;
 	
@@ -57,7 +57,7 @@ int cnct_packet_recv(socket_t rs)
 	while (1) {
 		memset(packet, '\0', cnct_mtu);
 		rx = recvfrom(rs, packet, cnct_mtu, 0, NULL, NULL);
-		cnct_packet_print(packet, rx);
+		cnct_packet_print(packet, proto, rx);
 		//break;
 	}
 	
@@ -91,10 +91,13 @@ int cnct_filter_pcp(char *rule)
 	return 0;
 }
 
-int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, proto, rule */
+int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(char *, int, int))
 {
 	LOG_IN;
-	int proto = IPPROTO_IP;
+	
+	if (!callback) {
+		callback = &cnct_packet_print;
+	}
 	/*
 	 * doing the following things here:
 	 * - rule exists? using PCAP
@@ -114,19 +117,27 @@ int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, pr
 	
 	/* TODO: develop default policies (if type/iface/proto/rule/... not provided) */
 	
+	/* receive socket */
 	socket_t rs;
 	
+	/* dump socket */
+	socket_t ds;
+	
 	if (rule) {
-		type = CNCT_PACKENGINE_PCP;
+		engine = CNCT_PACKENGINE_PCP;
 	}
 	
-	if (!type) {
+	if (!engine) {
 		/* trying to set up default type if not provided */
-		cnct_sys == CNCT_SYS_NT_T ? (type = CNCT_PACKENGINE_USR) : (type = CNCT_PACKENGINE_BPF);
+		cnct_sys == CNCT_SYS_NT_T ? (engine = CNCT_PACKENGINE_USR) : (engine = CNCT_PACKENGINE_BPF);
 	}
 	
-	if ((cnct_api == CNCT_API_NT_TYPE) && (type == CNCT_PACKENGINE_BPF)) {
-		type = CNCT_PACKENGINE_USR;
+	if (!proto) {
+		cnct_sys == CNCT_SYS_LINUX_T ? (proto = IPPROTO_RAW) : (proto = IPPROTO_IP);
+	}
+	
+	if ((cnct_api == CNCT_API_NT_TYPE) && (engine == CNCT_PACKENGINE_BPF)) {
+		engine = CNCT_PACKENGINE_USR;
 	}
 	
 	//if (((cnct_sys == CNCT_SYS_BSD_T) || (cnct_sys == CNCT_SYS_OSX_T)) && (type == CNCT_PACKENGINE_USR)) {
@@ -137,33 +148,34 @@ int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, pr
 	}
 	*/
 	
-	DBG_ON(printf("type: %d\n", type);)
+	DBG_ON(printf("engine : %d [ USR=%d BPF=%d PCP=%d ]\n", engine, CNCT_PACKENGINE_USR, CNCT_PACKENGINE_BPF, CNCT_PACKENGINE_PCP);)
+	DBG_ON(printf("proto  : %d [ RAW=%d IP=%d ]\n", proto, IPPROTO_RAW, IPPROTO_IP);)
 	
-	if (type != CNCT_PACKENGINE_PCP) {
-		if ((rs = cnct_packet_socket(type, proto)) == CNCT_INVALID) {
+	if (engine != CNCT_PACKENGINE_PCP) {
+		if ((rs = cnct_packet_socket(engine, proto)) == CNCT_INVALID) {
 			printf("error: can't set socket for dump\n");
 			return 1;
 		}
 	}
 	
-	if (type == CNCT_PACKENGINE_BPF) {
+	if (engine == CNCT_PACKENGINE_BPF) {
 		if (cnct_filter_bpf(iface, rs) == CNCT_ERROR) {
 			printf("error: can't set BPF filter\n");
 			return CNCT_ERROR;
 		}
-	} else if (type == CNCT_PACKENGINE_PCP) {
+	} else if (engine == CNCT_PACKENGINE_PCP) {
 		cnct_filter_pcp(rule);
-	} else if (type == CNCT_PACKENGINE_USR) {
+	} else if (engine == CNCT_PACKENGINE_USR) {
 	#ifdef CNCT_SYS_NT
 		//if (proto == IP) {
 			cnct_filter_bpf(); /* proto */
 		//}
 	#else
-		cnct_packet_recv(rs);
+		cnct_packet_recv(proto, rs);
 	#endif /* CNCT_SYS_NT */
 		;
 	} else {
-		printf("type not supported\n");
+		printf("engine not supported\n");
 		return 1;
 	}
 	

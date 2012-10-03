@@ -182,14 +182,16 @@ int demo_tcpsendmsg(const char *argv[])
 /* stand alone connect API based sample for dumping packets using BPF*/
 int demo_bpfdump(const char *argv[])
 {
-	cnct_packet_dump(CNCT_PACKENGINE_BPF, NULL, NULL);
+	/* engine, interface, proto, rule */
+	cnct_packet_dump(CNCT_PACKENGINE_BPF, NULL, 0, NULL, NULL);
 	return 0;
 }
 
 /* stand alone connect API based sample for dumping packets using raw socket */
 int demo_usrdump(const char *argv[])
 {
-	cnct_packet_dump(CNCT_PACKENGINE_USR, NULL, NULL);
+	/* engine, interface, proto, rule */
+	cnct_packet_dump(CNCT_PACKENGINE_USR, NULL, 0, NULL, NULL);
 	//cnct_packet_recv();
 	return 0;
 }
