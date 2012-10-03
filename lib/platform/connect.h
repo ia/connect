@@ -185,6 +185,7 @@
 	//#warning "TARGET: CNCT_SYS_LINUX"
 	#include <linux/filter.h>
 	#define CNCT_SOCKET_RAW    PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
+	#define CNCT_SOCKET_IP    PF_PACKET, SOCK_RAW, IPPROTO_IP
 	//#include "sys_linux.h"
 #elif defined SYS_BSD
 	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
@@ -208,6 +209,10 @@
 
 #ifndef CNCT_SOCKET_RAW
 	#define CNCT_SOCKET_RAW    AF_INET, SOCK_RAW, IPPROTO_RAW
+#endif
+
+#ifndef CNCT_SOCKET_IP
+	#define CNCT_SOCKET_IP    AF_INET, SOCK_RAW, IPPROTO_IP
 #endif
 
 /* *** */

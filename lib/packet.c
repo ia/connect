@@ -144,7 +144,7 @@ int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, pr
 	} else if (type == CNCT_PACKENGINE_USR) {
 	#ifdef CNCT_SYS_NT
 		//if (proto == IP) {
-			cnct_packet_recv_nt(); /* proto */
+			cnct_filter_bpf(); /* proto */
 		//}
 	#else
 		cnct_packet_recv(rs);
