@@ -5,6 +5,7 @@
 
 int cnct_packet_print(char *packet, int len)
 {
+	/* TODO: FIXME: if proto == IPPROTO_IP && cnct_sys == LINUX { seek packet to IP header before process } */
 	int i;
 	for (i = 0; i < len; i++) {
 		printf("%02X", *((unsigned char *) packet + i));
@@ -23,7 +24,7 @@ int cnct_packet_promisc()
 	return 0;
 }
 
-socket_t cnct_packet_socket(int engine)
+socket_t cnct_packet_socket(int engine, int proto)
 {
 	LOG_IN;
 	
@@ -33,7 +34,7 @@ socket_t cnct_packet_socket(int engine)
 		rs = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP));
 	} else
 #endif
-		rs = socket(CNCT_SOCKET_RAW);
+		(proto == IPPROTO_RAW) ? (rs = socket(CNCT_SOCKET_RAW)) : (rs = socket(CNCT_SOCKET_IP));
 	
 	if (rs == CNCT_INVALID) {
 		perror("socket");
@@ -93,7 +94,7 @@ int cnct_filter_pcp(char *rule)
 int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, proto, rule */
 {
 	LOG_IN;
-	
+	int proto = IPPROTO_IP;
 	/*
 	 * doing the following things here:
 	 * - rule exists? using PCAP
@@ -104,15 +105,24 @@ int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, pr
 	 */
 	
 	/*
-		linux   : usr bpf pcp
-		bsd/osx : ??? bpf pcp
-		win     : usr --- pcp
+		linux   : usr  bpf  pcp
+		bsd/osx : usr* bpf  pcp
+		win     : usr  usr* pcp
+		_____
+		* not all packets
 	*/
+	
+	/* TODO: develop default policies (if type/iface/proto/rule/... not provided) */
 	
 	socket_t rs;
 	
 	if (rule) {
 		type = CNCT_PACKENGINE_PCP;
+	}
+	
+	if (!type) {
+		/* trying to set up default type if not provided */
+		cnct_sys == CNCT_SYS_NT_T ? (type = CNCT_PACKENGINE_USR) : (type = CNCT_PACKENGINE_BPF);
 	}
 	
 	if ((cnct_api == CNCT_API_NT_TYPE) && (type == CNCT_PACKENGINE_BPF)) {
@@ -127,8 +137,10 @@ int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, pr
 	}
 	*/
 	
+	DBG_ON(printf("type: %d\n", type);)
+	
 	if (type != CNCT_PACKENGINE_PCP) {
-		if ((rs = cnct_packet_socket(type)) == CNCT_INVALID) {
+		if ((rs = cnct_packet_socket(type, proto)) == CNCT_INVALID) {
 			printf("error: can't set socket for dump\n");
 			return 1;
 		}

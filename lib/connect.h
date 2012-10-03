@@ -84,12 +84,10 @@ CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*ca
 
 /* high level packet funtions */
 
-CNCT_EXPORT  socket_t        cnct_packet_socket (int engine);
+CNCT_EXPORT  socket_t        cnct_packet_socket (int engine, int proto);
 CNCT_EXPORT  int             cnct_packet_recv   ();
 CNCT_EXPORT  int             cnct_packet_dump   (int engine, char *iface, char *rule);
 CNCT_EXPORT  int             cnct_packet_print  ();
-
-CNCT_EXPORT  int             cnct_filter_bpf    (char *iface, socket_t sd);
 
 /* network interfaces functions */
 
