@@ -90,7 +90,7 @@ int cnct_filter_pcp(char *rule)
 	return 0;
 }
 
-int cnct_packet_dump(int type, char *iface, char *rule)
+int cnct_packet_dump(int type, char *iface, char *rule) /* engine, interface, proto, rule */
 {
 	LOG_IN;
 	
@@ -142,13 +142,20 @@ int cnct_packet_dump(int type, char *iface, char *rule)
 	} else if (type == CNCT_PACKENGINE_PCP) {
 		cnct_filter_pcp(rule);
 	} else if (type == CNCT_PACKENGINE_USR) {
+	#ifdef CNCT_SYS_NT
+		//if (proto == IP) {
+			cnct_packet_recv_nt(); /* proto */
+		//}
+	#else
+		cnct_packet_recv(rs);
+	#endif /* CNCT_SYS_NT */
 		;
 	} else {
 		printf("type not supported\n");
 		return 1;
 	}
 	
-	cnct_packet_recv(rs);
+	//cnct_packet_recv(rs);
 	
 	LOG_OUT;
 	
