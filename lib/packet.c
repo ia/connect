@@ -24,6 +24,7 @@ int cnct_packet_promisc()
 	return 0;
 }
 
+#ifdef FALSE
 socket_t cnct_packet_socket(int engine, int proto)
 {
 	LOG_IN;
@@ -45,7 +46,9 @@ socket_t cnct_packet_socket(int engine, int proto)
 	
 	return rs;
 }
+#endif
 
+#ifdef FALSE
 int cnct_packet_recv(socket_t rs, int proto)
 {
 	LOG_IN;
@@ -65,6 +68,8 @@ int cnct_packet_recv(socket_t rs, int proto)
 	
 	return 0;
 }
+#endif
+
 /*
 int cnct_filter_bpf(socket_t sd)
 {
@@ -91,6 +96,38 @@ int cnct_filter_pcp(char *rule)
 	return 0;
 }
 
+int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(char *, int, int))
+{
+	LOG_IN;
+	
+	if (!callback) {
+		callback = &cnct_packet_print;
+	}
+	
+	socket_t rs = cnct_packet_recv_init(engine, iface, proto, rule);
+	
+	int rx = 1;
+	
+	MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
+	
+	while (rx > 0) {
+		memset(packet, '\0', cnct_mtu);
+		rx = cnct_packet_recv(rs, packet, cnct_mtu);
+		if (rx == -1) {
+			perror("dump: recv");
+		} else if (rx == 0) {
+			printf("dump: client shutdown\n");
+		} else {
+			(*callback)(packet, proto, rx);
+		}
+	}
+	
+	LOG_OUT;
+	
+	return 0;
+}
+
+#ifdef FALSE
 int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(char *, int, int))
 {
 	LOG_IN;
@@ -185,4 +222,5 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 	
 	return 0;
 }
+#endif
 
