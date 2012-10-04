@@ -169,7 +169,7 @@ int packet_recv(int fd)
 	return 0;
 }
 
-int cnct_filter_bpf(char *iface, socket_t rs)
+socket_t cnct_filter_bpf(char *iface, socket_t rs)
 {
 	int fd = 0;
 	// char *iface = NULL;
@@ -199,10 +199,118 @@ int cnct_filter_bpf(char *iface, socket_t rs)
 		err(EXIT_FAILURE, "set_filter");
 	}
 	
-	packet_recv(fd);
+	//packet_recv(fd);
 	
-	err(EXIT_FAILURE, "packet_recv");
+	// err(EXIT_FAILURE, "packet_recv");
+	
+	return fd;
+}
+
+socket_t cnct_packet_socket(int engine, int proto)
+{
+	LOG_IN;
+	
+	int rs;
+	
+	proto == IPPROTO_RAW ? (rs = socket(CNCT_SOCKET_RAW)) : (rs = socket(CNCT_SOCKET_IP));
+	
+	if (rs == CNCT_INVALID) {
+		perror("socket");
+		LOG_OUT_RET(-1);
+	}
+	
+	LOG_OUT;
+	
+	return rs;
+}
+
+int cnct_packet_recv(socket_t rs, char *packet, int len)
+{
+	char *buf = NULL;
+	char *p = NULL;
+	size_t blen = 0;
+	ssize_t n = 0;
+	struct bpf_hdr *bh = NULL;
+	struct ether_header *eh = NULL;
+	
+	if (ioctl(fd, BIOCGBLEN, &blen) < 0) {
+		return;
+	}
+	
+	printf("blen = %d\n", blen);
+	
+	if ((buf = malloc(blen)) == NULL) {
+		return;
+	}
+	
+	(void) printf("reading packets ...\n");
+	
+	for ( ; ; ) {
+		(void) memset(buf, '\0', blen);
+		
+		n = read(fd, buf, blen);
+		
+		if (n <= 0) {
+			return;
+		}
+		
+		p = buf;
+		while (p < buf + n) {
+			bh = (struct bpf_hdr *)p;
+			
+			/* Start of ethernet frame */
+			eh = (struct ether_header *)(p + bh->bh_hdrlen);
+			
+			(void) printf(
+				"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u]\n",
+				
+				eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
+				eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5],
+				
+				eh->ether_dhost[0], eh->ether_dhost[1], eh->ether_dhost[2],
+				eh->ether_dhost[3], eh->ether_dhost[4], eh->ether_dhost[5],
+				
+				eh->ether_type
+				);
+				
+			p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
+		}
+	}
 	
 	return 0;
 }
 
+socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
+{
+	LOG_IN;
+	
+	if (rule) {
+		engine = CNCT_PACKENGINE_PCP;
+	}
+	
+	if (!engine) {
+		engine = CNCT_PACKENGINE_BPF;
+	}
+	
+	if (!proto) {
+		proto = IPPROTO_RAW;
+	}
+	
+	if (engine == CNCT_PACKENGINE_PCP) {
+		cnct_filter_pcp(rule);
+	} else if (engine == CNCT_PACKENGINE_USR) {
+		if ((rs = cnct_packet_socket(engine, proto)) == CNCT_INVALID) {
+			printf("error: can't set socket for dump\n");
+			LOG_OUT_RET(1);
+		}
+	} else if (engine == CNCT_PACKENGINE_BPF) {
+		rs = cnct_filter_bpf(iface, 0);
+	} else {
+		printf("engine not supported\n");
+		LOG_OUT_RET(1);
+	}
+	
+	LOG_OUT;
+	
+	return rs;
+}

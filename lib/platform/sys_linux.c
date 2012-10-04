@@ -46,7 +46,7 @@ socket_t cnct_packet_socket(int engine, int proto)
 int cnct_packet_recv(socket_t rs, char *packet, int len)
 {
 	LOG_IN;
-	LOG_OUT_RET(recvfrom(rs, packet, len, 0, NULL, NULL))
+	LOG_OUT_RET(recvfrom(rs, packet, len, 0, NULL, NULL));
 	//int rx = 0;
 	
 	//MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
