@@ -187,6 +187,7 @@
 	#include <linux/filter.h>
 	#define CNCT_SOCKET_RAW    PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 	#define CNCT_SOCKET_IP     PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
+	#define cnct_mtu  1024 * 64
 	//#include "sys_linux.h"
 #elif defined SYS_BSD
 	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
@@ -194,6 +195,7 @@
 	#include <net/bpf.h>
 	//#warning "TARGET: CNCT_SYS_BSD"
 	//#include "sys_bsd.h"
+	#define cnct_mtu  1024 *  4
 #elif defined SYS_OSX
 	#define  CNCT_SYS_OSX   CNCT_SYS_OSX_T
 	#define  CNCT_SYS       CNCT_SYS_OSX

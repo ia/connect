@@ -199,6 +199,15 @@ socket_t cnct_filter_bpf(char *iface, socket_t rs)
 		err(EXIT_FAILURE, "set_filter");
 	}
 	
+	/*
+	size_t blen = 0;
+	if (ioctl(fd, BIOCGBLEN, &blen) < 0) {
+		perror("ioctl");
+		return -1;
+	}
+	printf("blen = %d\n", blen);
+	*/
+	
 	//packet_recv(fd);
 	
 	// err(EXIT_FAILURE, "packet_recv");
@@ -224,15 +233,16 @@ socket_t cnct_packet_socket(int engine, int proto)
 	return rs;
 }
 
-int cnct_packet_recv(socket_t rs, char *packet, int len)
+int cnct_packet_recv(socket_t fd, char *packet, int len)
 {
-	char *buf = NULL;
+	//char *buf = NULL;
 	char *p = NULL;
-	size_t blen = 0;
+	//size_t blen = 0;
 	ssize_t n = 0;
 	struct bpf_hdr *bh = NULL;
 	struct ether_header *eh = NULL;
 	
+	/*
 	if (ioctl(fd, BIOCGBLEN, &blen) < 0) {
 		return;
 	}
@@ -242,47 +252,49 @@ int cnct_packet_recv(socket_t rs, char *packet, int len)
 	if ((buf = malloc(blen)) == NULL) {
 		return;
 	}
+	*/
 	
-	(void) printf("reading packets ...\n");
+	(void) printf("reading packet ...\n");
 	
-	for ( ; ; ) {
-		(void) memset(buf, '\0', blen);
+	
+	// (void) memset(packet, '\0', blen);
 		
-		n = read(fd, buf, blen);
-		
-		if (n <= 0) {
-			return;
-		}
-		
-		p = buf;
-		while (p < buf + n) {
-			bh = (struct bpf_hdr *)p;
-			
-			/* Start of ethernet frame */
-			eh = (struct ether_header *)(p + bh->bh_hdrlen);
-			
-			(void) printf(
-				"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u]\n",
-				
-				eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
-				eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5],
-				
-				eh->ether_dhost[0], eh->ether_dhost[1], eh->ether_dhost[2],
-				eh->ether_dhost[3], eh->ether_dhost[4], eh->ether_dhost[5],
-				
-				eh->ether_type
-				);
-				
-			p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
-		}
+	n = read(fd, packet, len);
+	
+	if (n <= 0) {
+		return n;
 	}
 	
-	return 0;
+	p = packet;
+	while (p < packet + n) {
+		bh = (struct bpf_hdr *)p;
+		
+		/* Start of ethernet frame */
+		eh = (struct ether_header *)(p + bh->bh_hdrlen);
+		
+		(void) printf(
+			"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u]\n",
+			
+			eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
+			eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5],
+			
+			eh->ether_dhost[0], eh->ether_dhost[1], eh->ether_dhost[2],
+			eh->ether_dhost[3], eh->ether_dhost[4], eh->ether_dhost[5],
+			
+			eh->ether_type
+			);
+			
+		p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
+	}
+	
+	return bh->bh_caplen;
 }
 
 socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
 {
 	LOG_IN;
+	
+	socket_t rs = CNCT_ERROR;
 	
 	if (rule) {
 		engine = CNCT_PACKENGINE_PCP;
@@ -314,3 +326,4 @@ socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
 	
 	return rs;
 }
+

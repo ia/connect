@@ -1,7 +1,7 @@
 
 #include "connect.h"
 
-#define cnct_mtu 64*1024
+//#define cnct_mtu 64*1024
 
 int cnct_packet_print(char *packet, int proto, int len)
 {
