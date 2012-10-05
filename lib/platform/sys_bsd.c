@@ -235,7 +235,7 @@ socket_t cnct_packet_socket(int engine, int proto)
 
 int cnct_packet_recv(socket_t fd, char *packet, int len)
 {
-	//char *buf = NULL;
+	char *mbuf = NULL;
 	char *p = NULL;
 	//size_t blen = 0;
 	ssize_t n = 0;
@@ -248,32 +248,33 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 	}
 	
 	printf("blen = %d\n", blen);
-	
-	if ((buf = malloc(blen)) == NULL) {
+	*/
+	if ((mbuf = malloc(len)) == NULL) {
 		return;
 	}
-	*/
+	
 	
 	(void) printf("reading packet ...\n");
 	
 	
-	// (void) memset(packet, '\0', blen);
+	(void) memset(mbuf, '\0', len);
 		
-	n = read(fd, packet, len);
+	n = read(fd, mbuf, len);
 	
 	if (n <= 0) {
 		return n;
 	}
 	
-	p = packet;
-	while (p < packet + n) {
+	p = mbuf;
+	while (p < mbuf + n) {
 		bh = (struct bpf_hdr *)p;
 		
 		/* Start of ethernet frame */
 		eh = (struct ether_header *)(p + bh->bh_hdrlen);
-		
+	//	memcpy(packet, p + bh->bh_hdrlen, bh->bh_hdrlen);
+		//packet = (p + bh->bh_hdrlen);
 		(void) printf(
-			"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u]\n",
+			"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u] [n=%d] [l=%d] [h=%d]\n",
 			
 			eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
 			eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5],
@@ -281,9 +282,12 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 			eh->ether_dhost[0], eh->ether_dhost[1], eh->ether_dhost[2],
 			eh->ether_dhost[3], eh->ether_dhost[4], eh->ether_dhost[5],
 			
-			eh->ether_type
+			eh->ether_type,
+			n,
+			bh->bh_caplen,
+			bh->bh_hdrlen
 			);
-			
+		memcpy(packet, p + bh->bh_hdrlen, bh->bh_caplen);
 		p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
 	}
 	

@@ -7,6 +7,7 @@ int cnct_packet_print(char *packet, int proto, int len)
 {
 	/* TODO: FIXME: if proto == IPPROTO_IP && cnct_sys == LINUX { seek packet to IP header before process } */
 	int i;
+	printf("[len=%d] ", len);
 	for (i = 0; i < len; i++) {
 		printf("%02X", *((unsigned char *) packet + i));
 		if (i == 14) {
@@ -110,7 +111,7 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 	
 	MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
 	
-	while (rx > 0) {
+	//while (rx > 0) {
 		memset(packet, '\0', cnct_mtu);
 		rx = cnct_packet_recv(rs, packet, cnct_mtu);
 		if (rx == -1) {
@@ -120,7 +121,7 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 		} else {
 			(*callback)(packet, proto, rx);
 		}
-	}
+	//}
 	
 	LOG_OUT;
 	
