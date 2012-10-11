@@ -1,20 +1,7 @@
 
 #include "../connect.h"
 
-//#include <err.h>
-
-
-//#include <netinet/in.h>
-//#include <net/if.h>
-
-
-//#include <net/bpf.h>
-
-//#include <net/ethernet.h>
-
-
-
-int open_device()
+int set_device()
 {
 	int fd = -1;
 	char dev[32];
@@ -42,7 +29,7 @@ int open_device()
 	return -1;
 }
 
-int check_datalink(int fd)
+int get_datalink(int fd)
 {
 	u_int32_t dlt = 0;
 	
@@ -95,12 +82,8 @@ int set_options(int fd, char *iface)
 
 int set_filter(int fd)
 {
-	struct bpf_program fcode = {0};
-	
-	/* dump ssh packets only */
-	struct bpf_insn insns[] = {
-		{ 0x6, 0, 0, 0x0000ffff },
-	};
+	struct bpf_program fcode = { 0 };
+	struct bpf_insn insns[] = { CNCT_BPF_PCKT };
 	
 	/* Set the filter */
 	fcode.bf_len = sizeof(insns) / sizeof(struct bpf_insn);
@@ -172,26 +155,16 @@ int packet_recv(int fd)
 socket_t cnct_filter_bpf(char *iface, socket_t rs)
 {
 	int fd = 0;
-	// char *iface = NULL;
 	
-	// iface = strdup(argc < 2 ? "en1" : iface);
-	/*
-	if (iface == NULL) {
-		err(EXIT_FAILURE, "strdup");
-	}
-	*/
-	
-	fd = open_device();
-	
-	if (fd < 0) {
-		err(EXIT_FAILURE, "open_device");
+	if ((fd = set_device()) < 0) {
+		err(EXIT_FAILURE, "set_device");
 	}
 	
 	if (set_options(fd, (iface == NULL ? "en0" : iface)) < 0) {
 		err(EXIT_FAILURE, "set_options");
 	}
 	
-	if (check_datalink(fd) < 0) {
+	if (get_datalink(fd) < 0) {
 		err(EXIT_FAILURE, "check_datalink");
 	}
 	
@@ -233,48 +206,45 @@ socket_t cnct_packet_socket(int engine, int proto)
 	return rs;
 }
 
+/*
+ * http://www.opensource.apple.com/source/xnu/xnu-792.13.8/bsd/net/bpf.h
+ *  Structure prepended to each packet.
+
+struct bpf_hdr {
+	struct timeval  bh_tstamp;   // time stamp
+	bpf_u_int32     bh_caplen;   // length of captured portion
+	bpf_u_int32     bh_datalen;  // original length of packet
+	u_short         bh_hdrlen;   // length of bpf header (this struct plus alignment padding)
+};
+*/
+
 int cnct_packet_recv(socket_t fd, char *packet, int len)
 {
 	char *mbuf = NULL;
-	char *p = NULL;
-	//size_t blen = 0;
-	ssize_t n = 0;
+	char *pbuf = NULL;
+	ssize_t rx = 0;
 	struct bpf_hdr *bh = NULL;
 	struct ether_header *eh = NULL;
 	
-	/*
-	if (ioctl(fd, BIOCGBLEN, &blen) < 0) {
-		return;
-	}
-	
-	printf("blen = %d\n", blen);
-	*/
 	if ((mbuf = malloc(len)) == NULL) {
 		return;
 	}
 	
-	
-	(void) printf("reading packet ...\n");
-	
-	
 	(void) memset(mbuf, '\0', len);
-		
-	n = read(fd, mbuf, len);
 	
-	if (n <= 0) {
-		return n;
+	if ((rx = read(fd, mbuf, len)) <= 0) {
+		return rx;
 	}
 	
-	p = mbuf;
-	while (p < mbuf + n) {
-		bh = (struct bpf_hdr *)p;
+	pbuf = mbuf;
+	while (pbuf < mbuf + rx) {
+		// bh = (struct bpf_hdr *) pbuf;
 		
 		/* Start of ethernet frame */
-		eh = (struct ether_header *)(p + bh->bh_hdrlen);
-	//	memcpy(packet, p + bh->bh_hdrlen, bh->bh_hdrlen);
-		//packet = (p + bh->bh_hdrlen);
+		// eh = (struct ether_header *)(pbuf + bh->bh_hdrlen);
+		/*
 		(void) printf(
-			"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u] [n=%d] [l=%d] [h=%d]\n",
+			"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u] [rx=%d] [caplen=%d] [datalen=%d] [hdrlen=%d]\n",
 			
 			eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
 			eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5],
@@ -283,13 +253,28 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 			eh->ether_dhost[3], eh->ether_dhost[4], eh->ether_dhost[5],
 			
 			eh->ether_type,
-			n,
+			rx,
 			bh->bh_caplen,
-			bh->bh_hdrlen
-			);
-		memcpy(packet, p + bh->bh_hdrlen, bh->bh_caplen);
-		p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
+			bh->bh_datalen,
+			((struct bpf_hdr *) pbuf)->bh_hdrlen
+		);
+		*/
+		/*
+		 * length checks:
+		 *   caplen == datalen
+		 *   rx == caplen + hdrlen == datalen + hdrlen
+		 */
+		/* one line copy:
+		 *
+		 */
+		memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen, ((struct bpf_hdr *) pbuf)->bh_caplen);
+		pbuf += BPF_WORDALIGN(((struct bpf_hdr *) pbuf)->bh_hdrlen + ((struct bpf_hdr *) pbuf)->bh_caplen);
+		
+		// memcpy(packet, pbuf + bh->bh_hdrlen, bh->bh_caplen);
+		//pbuf += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
 	}
+	
+	free(mbuf);
 	
 	return bh->bh_caplen;
 }
