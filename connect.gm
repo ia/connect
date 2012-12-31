@@ -46,10 +46,13 @@ else ifeq ($(SYS),bsd)
 	LIB_SOCKET   = $(LIB_DIR)/platform/sys_nt.c
 	LIB_SOCKET_O = sys_nt.o
 	CFLAGS      += -DSYS_NT
-else
+else ifeq ($(SYS),linux)
 	LIB_SOCKET   = $(LIB_DIR)/platform/sys_linux.c
 	LIB_SOCKET_O = sys_linux.o
 	CFLAGS      += -DSYS_LINUX
+else
+	LIB_SOCKET   = $(LIB_DIR)/platform/platform.c
+	LIB_SOCKET_O = platform.o
 endif
 
 # library sources

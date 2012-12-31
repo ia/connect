@@ -180,7 +180,7 @@
 	#include "api_nt.h"
 #endif
 
-#ifdef SYS_LINUX
+#if defined(SYS_LINUX) || defined(__linux__)
 	#define  CNCT_SYS_LINUX CNCT_SYS_LINUX_T
 	#define  CNCT_SYS       CNCT_SYS_LINUX
 	//#warning "TARGET: CNCT_SYS_LINUX"
@@ -189,19 +189,19 @@
 	#define CNCT_SOCKET_IP     PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 	#define cnct_mtu  1024 * 64
 	//#include "sys_linux.h"
-#elif defined SYS_BSD
+#elif defined SYS_BSD || ((!defined(__linux__)) && defined(__unix__))
 	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
 	#define  CNCT_SYS       CNCT_SYS_BSD
 	#include <net/bpf.h>
 	//#warning "TARGET: CNCT_SYS_BSD"
 	//#include "sys_bsd.h"
 	#define cnct_mtu  1024 *  4
-#elif defined SYS_OSX
+#elif defined SYS_OSX || (defined(__APPLE__) && defined(__MACH__))
 	#define  CNCT_SYS_OSX   CNCT_SYS_OSX_T
 	#define  CNCT_SYS       CNCT_SYS_OSX
 	//#warning "TARGET: CNCT_SYS_OSX"
 	//#include "sys_osx.h"
-#elif defined SYS_NT
+#elif defined SYS_NT || (defined(_WIN32) || defined(_WIN64))
 	#define  CNCT_SYS_NT    CNCT_SYS_NT_T
 	#define  CNCT_SYS       CNCT_SYS_NT
 	//#warning "TARGET: CNCT_SYS_NT"
