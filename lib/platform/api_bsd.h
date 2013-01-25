@@ -24,7 +24,23 @@
 #include <net/if.h>
 //#include <linux/filter.h>
 
+//#include <net/bpf.h>
+
+#ifdef __QNX__
+
+#include <io-pkt/sys/types_bsd.h>
+#include <sys/io-pkt.h>
+#include <sys/syspage.h>
+#include <sys/device.h>
+#include <device_qnx.h>
+#include <net/if_ether.h>
+#include <net/if_media.h>
+#include <net/netbyte.h>
+#include <net80211/ieee80211_var.h>
+
+#else
 #include <net/ethernet.h>
+#endif
 
 //#include <linux/in.h>
 

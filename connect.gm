@@ -42,7 +42,11 @@ else ifeq ($(SYS),bsd)
 	LIB_SOCKET   = $(LIB_DIR)/platform/sys_bsd.c
 	LIB_SOCKET_O = sys_bsd.o
 	CFLAGS      += -DSYS_BSD
-else ifeq ($(SYS),bsd)
+else ifeq ($(SYS),qnx)
+	LIB_SOCKET   = $(LIB_DIR)/platform/sys_bsd.c
+	LIB_SOCKET_O = sys_bsd.o
+	CFLAGS      += -DSYS_BSD -lsocket
+else ifeq ($(SYS),nt)
 	LIB_SOCKET   = $(LIB_DIR)/platform/sys_nt.c
 	LIB_SOCKET_O = sys_nt.o
 	CFLAGS      += -DSYS_NT

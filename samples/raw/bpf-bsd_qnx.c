@@ -234,7 +234,8 @@ void read_packets(int fd)
 				eh->ether_type
 				);
 			*/
-			printf("[type=%u]\n", (int) eh->ether_type);
+			printf("[stype=%u] ", (int) eh->ether_type);
+			printf("[utype=%u]\n", (unsigned int) eh->ether_type);
 
 			p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
 		}

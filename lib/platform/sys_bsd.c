@@ -154,6 +154,8 @@ int packet_recv(int fd)
 
 socket_t cnct_filter_bpf(char *iface, socket_t rs)
 {
+	LOG_IN;
+	
 	int fd = 0;
 	
 	if ((fd = set_device()) < 0) {
@@ -185,7 +187,8 @@ socket_t cnct_filter_bpf(char *iface, socket_t rs)
 	
 	// err(EXIT_FAILURE, "packet_recv");
 	
-	return fd;
+	LOG_OUT_RET(fd);
+	//return fd;
 }
 
 socket_t cnct_packet_socket(int engine, int proto)
@@ -238,11 +241,11 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 	
 	pbuf = mbuf;
 	while (pbuf < mbuf + rx) {
-		// bh = (struct bpf_hdr *) pbuf;
+		bh = (struct bpf_hdr *) pbuf;
 		
 		/* Start of ethernet frame */
-		// eh = (struct ether_header *)(pbuf + bh->bh_hdrlen);
-		/*
+		eh = (struct ether_header *)(pbuf + bh->bh_hdrlen);
+		
 		(void) printf(
 			"%02x:%02x:%02x:%02x:%02x:%02x -> %02x:%02x:%02x:%02x:%02x:%02x [type=%u] [rx=%d] [caplen=%d] [datalen=%d] [hdrlen=%d]\n",
 			
@@ -258,7 +261,7 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 			bh->bh_datalen,
 			((struct bpf_hdr *) pbuf)->bh_hdrlen
 		);
-		*/
+		
 		/*
 		 * length checks:
 		 *   caplen == datalen
@@ -267,7 +270,7 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 		/* one line copy:
 		 *
 		 */
-		memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen, ((struct bpf_hdr *) pbuf)->bh_caplen);
+		// memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen, ((struct bpf_hdr *) pbuf)->bh_caplen);
 		pbuf += BPF_WORDALIGN(((struct bpf_hdr *) pbuf)->bh_hdrlen + ((struct bpf_hdr *) pbuf)->bh_caplen);
 		
 		// memcpy(packet, pbuf + bh->bh_hdrlen, bh->bh_caplen);

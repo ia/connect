@@ -19,7 +19,7 @@
 #define CNCT_SYS_OSX_T     13
 #define CNCT_SYS_NT_T      14
 
-#if ( defined(__unix__) || ( defined(__APPLE__) && defined(__MACH__) ) )
+#if ( defined(__unix__) || ( defined(__APPLE__) && defined(__MACH__) ) || ( defined(__QNX__) ) )
 	
 	/* BSD sockets API conventions */
 	
@@ -180,6 +180,7 @@
 	#include "api_nt.h"
 #endif
 
+/* TODO: fix this section for correct defines */
 #if defined(SYS_LINUX) || defined(__linux__)
 	#define  CNCT_SYS_LINUX CNCT_SYS_LINUX_T
 	#define  CNCT_SYS       CNCT_SYS_LINUX
@@ -193,7 +194,7 @@
 	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
 	#define  CNCT_SYS       CNCT_SYS_BSD
 	#include <net/bpf.h>
-	//#warning "TARGET: CNCT_SYS_BSD"
+	#warning "TARGET: CNCT_SYS_BSD"
 	//#include "sys_bsd.h"
 	#define cnct_mtu  1024 *  4
 #elif defined SYS_OSX || (defined(__APPLE__) && defined(__MACH__))
