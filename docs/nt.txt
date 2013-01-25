@@ -1,0 +1,38 @@
+links:
+
+http://msdn.microsoft.com/en-us/library/windows/desktop/ms740548%28v=vs.85%29.aspx
+http://wd-3.com/archive/WinBuild.htm
+http://rsdn.ru/forum/cpp.applied/4472279.flat
+http://technet.microsoft.com/en-us/library/dd919238%28v=ws.10%29.aspx
+http://randomlearningnotes.wordpress.com/2009/04/20/using-wdkddk-build-environment-for-drivers-and-non-drivers/
+
+----
+
+basic usage:
+
+-- compile:
+> build
+
+-- run:
+- prepare service:
+
+> sc create PacketFilter type= kernel binpath= C:\Users\user\Development\kernel\filter\objchk_win7_amd64\amd64\sys_nt.sys
+
+- run:
+
+> sc start ndsniff
+
+- stop:
+
+> sc stop ndsniff
+
+- remove:
+
+> sc delete ndsniff
+
+----
+
+List of network interfaces:
+ - regedit.exe
+ - HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces
+

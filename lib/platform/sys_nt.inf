@@ -1,0 +1,107 @@
+;
+; more info on this brain damaged format:
+;
+; http://bazaar.launchpad.net/~iaz/+junk/mirror-winddk/view/head:/7600.16385.1/src/network/ndis/filter/netlwf.inf
+; http://www-pc.uni-regensburg.de/systemsw/TECHTOOL/w95/doc/SAMPLE.HTM
+; C:\WinDDK\7600.16385.1\tools\Chkinf\chkinf.bat ndsniff.inf
+; inf2cat /driver:C:\path\to\dir\with\file.inf /os:7_x64
+;
+
+[version]
+Signature   	= "$WINDOWS NT$"
+; HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class
+Class     	= NetService
+ClassGUID  	= {4D36E974-E325-11CE-BFC1-08002BE10318}
+Provider    	= %Cnct%
+DriverVer	=01/23/2013,1.0.0.1
+CatalogFile=ndsniff.cat
+
+[Manufacturer]
+%Cnct%=CNCT.NTamd64, NTAMD64
+
+;[CNCT.NTx86]
+;%NdisLwf_Desc%=Install, MS_NdisLwf
+
+;[MSFT.NTia64]
+;%NdisLwf_Desc%=Install, MS_NdisLwf
+
+[CNCT.NTamd64]
+%ndsniff_Desc%=Install, PCKT_ndsniff
+
+[NTAMD64]
+%ndsniff_Desc%=Install, PCKT_ndsniff
+
+;-------------------------------------------------------------------------
+; Installation Section
+;-------------------------------------------------------------------------
+[Install]
+AddReg=Inst_Ndi
+Characteristics=0x40000
+;NetCfgInstanceId="{5cbf81bd-5055-47cd-9055-a76b2b4e3697}"
+;Copyfiles = ndsniff_copyfiles
+CopyFiles = CopySys
+
+[SourceDisksNames]
+1=%ndsniff_Desc%,"",,
+
+[SourceDisksFiles]
+ndsniff.sys=1
+
+[DestinationDirs]
+DefaultDestDir=12
+;ndsniff_copyfiles=12
+
+;[ndisniff_copyfiles]
+;ndsniff.sys,,,2
+
+[CopySys]
+ndsniff.sys
+
+;-------------------------------------------------------------------------
+; Ndi installation support
+;-------------------------------------------------------------------------
+[Inst_Ndi]
+HKR, Ndi,Service,,"PacketFilter"
+;HKR, Ndi,CoServices,0x00010000,"NdisLwf"
+;HKR, Ndi,HelpText,,%NdisLwf_HelpText%
+;HKR, Ndi,FilterClass,, compression
+;HKR, Ndi,FilterType,0x00010001,0x00000002
+HKR, Ndi\Interfaces,UpperRange,,"noupper"
+HKR, Ndi\Interfaces,LowerRange,,"nolower"
+;HKR, Ndi\Interfaces, FilterMediaTypes,,"ethernet"
+;HKR, Ndi,FilterRunType, 0x00010001, 1 ;this filter must run before any protocol can bind to the below miniport 
+
+;-------------------------------------------------------------------------
+; Service installation support
+;-------------------------------------------------------------------------
+;[Install.Services]
+;AddService=NdisLwf,,NdisLwf_Service_Inst
+
+;[NdisLwf_Service_Inst]
+;DisplayName     = %NdisLwf_Desc%
+;ServiceType     = 1 ;SERVICE_KERNEL_DRIVER
+;StartType       = 1 ;SERVICE_SYSTEM_START
+;ErrorControl    = 1 ;SERVICE_ERROR_NORMAL
+;ServiceBinary   = %12%\ndislwf.sys
+;LoadOrderGroup  = NDIS
+;Description     = %NdisLwf_Desc%
+;AddReg          = Common.Params.reg
+
+;[Install.Remove.Services]
+;DelService=NdisLwf,0x200
+
+;[Common.Params.reg]
+
+;HKR, FilterDriverParams\DriverParam, 		ParamDesc, 	, "Driverparam for lwf"
+;HKR, FilterDriverParams\DriverParam, 		default, 	, "5"
+;HKR, FilterDriverParams\DriverParam, 		type, 		, "int"
+
+;HKR, FilterAdapterParams\AdapterParam, 		ParamDesc, 	, "Adapterparam for lwf"
+;HKR, FilterAdapterParams\AdapterParam, 		default, 	, "10"
+;HKR, FilterAdapterParams\AdapterParam, 		type, 		, "int"
+
+[Strings]
+Cnct = "Connect project"
+ndsniff_Desc = "NDIS basic packet filter"
+ndsniff_HelpText = "Packet dumper based on NDIS packet filter"
+
