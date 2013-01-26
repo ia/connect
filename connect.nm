@@ -77,5 +77,20 @@ clean:
 	-RD /Q /S $(OUT_DIR)
 	-RD /Q /S $(DIST_DIR)
 
+ndis-build:
+	cd $(LIB_DIR)\platform
+	build
+	copy sys_nt.sys $(OUT_BIN_DIR)
+
+ndis-sign:
+	inf2cat
+
+ndis-dist:
+	copy $(OUT_BIN_DIR)/sys_nt.sys $(DIST_DIR)\\
+
+ndis-clean:
+	-del
+	-RD /Q /S
+
 .PHONY: all dir lib bin run dist clean
 
