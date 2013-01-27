@@ -84,6 +84,8 @@ CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*ca
 
 /* high level packet funtions */
 
+/* TODO: split to platform-specific, fix declarations */
+
 CNCT_EXPORT  socket_t        cnct_packet_socket    (int engine, int proto);
 CNCT_EXPORT  socket_t        cnct_packet_recv_init (int engine, char *iface, int proto, char *rule);
 CNCT_EXPORT  int             cnct_packet_recv      ();

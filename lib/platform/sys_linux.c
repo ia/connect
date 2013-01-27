@@ -80,6 +80,7 @@ socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
 	if (engine == CNCT_PACKENGINE_PCP) {
 		cnct_filter_pcp(rule);
 	} else if ((engine == CNCT_PACKENGINE_USR) || (engine == CNCT_PACKENGINE_BPF)) {
+		/* TODO: implement call for `cnct_filter_bpf' when engine is BPF */
 		if ((rs = cnct_packet_socket(engine, proto)) == CNCT_INVALID) {
 			printf("error: can't set socket for dump\n");
 			LOG_OUT_RET(1);

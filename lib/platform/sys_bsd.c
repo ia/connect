@@ -162,7 +162,7 @@ socket_t cnct_filter_bpf(char *iface, socket_t rs)
 		err(EXIT_FAILURE, "set_device");
 	}
 	
-	if (set_options(fd, (iface == NULL ? "en0" : iface)) < 0) {
+	if (set_options(fd, ((iface == NULL) ? "en0" : iface)) < 0) {
 		err(EXIT_FAILURE, "set_options");
 	}
 	
@@ -221,7 +221,7 @@ struct bpf_hdr {
 };
 */
 
-int cnct_packet_recv(socket_t fd, char *packet, int len)
+ssize_t cnct_packet_recv(socket_t fd, char *packet, size_t len)
 {
 	char *mbuf = NULL;
 	char *pbuf = NULL;
@@ -229,6 +229,13 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 	struct bpf_hdr *bh = NULL;
 	struct ether_header *eh = NULL;
 	
+	// TODO: check this section in QNX
+	/*
+	if (ioctl(fd, BIOCGBLEN, &len) < 0) {
+		return;
+	}
+	*/
+
 	if ((mbuf = malloc(len)) == NULL) {
 		return;
 	}
@@ -270,7 +277,7 @@ int cnct_packet_recv(socket_t fd, char *packet, int len)
 		/* one line copy:
 		 *
 		 */
-		// memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen, ((struct bpf_hdr *) pbuf)->bh_caplen);
+		memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen,  ((struct bpf_hdr *) pbuf)->bh_caplen);
 		pbuf += BPF_WORDALIGN(((struct bpf_hdr *) pbuf)->bh_hdrlen + ((struct bpf_hdr *) pbuf)->bh_caplen);
 		
 		// memcpy(packet, pbuf + bh->bh_hdrlen, bh->bh_caplen);

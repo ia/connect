@@ -108,7 +108,7 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 	socket_t rs = cnct_packet_recv_init(engine, iface, proto, rule);
 	/* TODO: cnct_packet_len */
 	
-	int rx = 1;
+	ssize_t rx = 0;
 	
 	MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
 	
