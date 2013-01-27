@@ -170,6 +170,40 @@
 
 #define CNCT_BPF_PCKT { 0x6, 0, 0, 0x0000ffff }
 
+/* TODO: fix and test this section for correct defines */
+#if ( defined(SYS_LINUX) || defined(__linux__) )
+	#define  CNCT_SYS_LINUX CNCT_SYS_LINUX_T
+	#define  CNCT_SYS       CNCT_SYS_LINUX
+	#warning "TARGET: CNCT_SYS_LINUX"
+//	#include <linux/filter.h>
+	#define CNCT_SOCKET_RAW    PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
+	#define CNCT_SOCKET_IP     PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
+	#define cnct_mtu  1024 * 64
+	//#include "sys_linux.h"
+#elif ( defined(SYS_BSD) || ( (!defined(__linux__)) && defined(__unix__) ) || ( defined(__APPLE__) && defined(__MACH__) ) )
+	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
+	#define  CNCT_SYS       CNCT_SYS_BSD
+//	#include <net/bpf.h>
+	#warning "TARGET: CNCT_SYS_BSD"
+	//#include "sys_bsd.h"
+	#define cnct_mtu  1024 *  4
+/*
+#elif ( defined(SYS_OSX) || ( defined(__APPLE__) && defined(__MACH__) ) )
+	#define  CNCT_SYS_OSX   CNCT_SYS_OSX_T
+	#define  CNCT_SYS       CNCT_SYS_OSX
+	#include <net/bpf.h>
+	#warning "TARGET: CNCT_SYS_OSX"
+	//#include "sys_osx.h"
+*/
+#elif ( defined(SYS_NT) || defined(_WIN32) || defined(_WIN64) )
+	#define  CNCT_SYS_NT    CNCT_SYS_NT_T
+	#define  CNCT_SYS       CNCT_SYS_NT
+	#warning "TARGET: CNCT_SYS_NT"
+	//#include "sys_nt.h"
+#else
+	#error "define SYS_NAME manually"
+#endif
+
 /* includes */
 
 #ifdef CNCT_API_BSD
@@ -178,38 +212,6 @@
 #else
 	#define  CNCT_API CNCT_API_NT
 	#include "api_nt.h"
-#endif
-
-/* TODO: fix and test this section for correct defines */
-#if ( defined(SYS_LINUX) || defined(__linux__) )
-	#define  CNCT_SYS_LINUX CNCT_SYS_LINUX_T
-	#define  CNCT_SYS       CNCT_SYS_LINUX
-	#warning "TARGET: CNCT_SYS_LINUX"
-	#include <linux/filter.h>
-	#define CNCT_SOCKET_RAW    PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
-	#define CNCT_SOCKET_IP     PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
-	#define cnct_mtu  1024 * 64
-	//#include "sys_linux.h"
-#elif ( defined(SYS_BSD) || ( (!defined(__linux__)) && defined(__unix__) ) )
-	#define  CNCT_SYS_BSD   CNCT_SYS_BSD_T
-	#define  CNCT_SYS       CNCT_SYS_BSD
-	#include <net/bpf.h>
-	#warning "TARGET: CNCT_SYS_BSD"
-	//#include "sys_bsd.h"
-	#define cnct_mtu  1024 *  4
-#elif ( defined(SYS_OSX) || ( defined(__APPLE__) && defined(__MACH__) ) )
-	#define  CNCT_SYS_OSX   CNCT_SYS_OSX_T
-	#define  CNCT_SYS       CNCT_SYS_OSX
-	#include <net/bpf.h>
-	#warning "TARGET: CNCT_SYS_OSX"
-	//#include "sys_osx.h"
-#elif ( defined(SYS_NT) || defined(_WIN32) || defined(_WIN64) )
-	#define  CNCT_SYS_NT    CNCT_SYS_NT_T
-	#define  CNCT_SYS       CNCT_SYS_NT
-	//#warning "TARGET: CNCT_SYS_NT"
-	//#include "sys_nt.h"
-#else
-	#error "define SYS_NAME manually"
 #endif
 
 #ifndef CNCT_SOCKET_RAW

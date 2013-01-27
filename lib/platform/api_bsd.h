@@ -26,6 +26,8 @@
 
 //#include <net/bpf.h>
 
+#include <net/ethernet.h>
+
 #ifdef __QNX__
 
 #include <io-pkt/sys/types_bsd.h>
@@ -38,8 +40,14 @@
 #include <net/netbyte.h>
 #include <net80211/ieee80211_var.h>
 
-#else
-#include <net/ethernet.h>
+#endif
+
+#ifdef CNCT_SYS_LINUX
+	#include <linux/filter.h>
+#endif
+
+#ifdef CNCT_SYS_BSD
+	#include <net/bpf.h>
 #endif
 
 //#include <linux/in.h>
