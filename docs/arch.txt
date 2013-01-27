@@ -1,0 +1,57 @@
+
+lib/connect.h:
+----
+platform/connect.h
+connect library custom data types
+----
+
+lib/platform/connect.h:
+----
+autodetect socket api model (BSD/NT) using compiler's built-in defines
+debug and routine defines
+autodetect system (linux/bsd/nt) using compiler's built-in defines
+including header with headers
+----
+
+linux:
+
+demo_bpfdump
+	cnct_packet_dump
+		cnct_packet_recv_init
+			cnct_packet_socket
+				socket
+				ret
+			ret
+		cnct_packet_recv
+			recvfrom
+			ret
+		callback
+	ret
+ret
+
+bsd:
+
+demo_bpfdump
+	cnct_packet_dump
+		cnct_packet_recv_init
+			cnct_filter_bpf
+				set_device
+				set_options
+				get_datalink
+				set_filter
+			ret
+		cnct_packet_recv
+			read
+			ret
+		callback
+	ret
+ret
+
+----
+
+cnct_filter_bpf       -> sys_filter_bpf
+cnct_packet_recv_init -> sys_packet_recv_init
+cnct_packet_recv      -> sys_packet_recv
+
+remove proto arg
+
