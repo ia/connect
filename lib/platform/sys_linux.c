@@ -43,7 +43,7 @@ socket_t cnct_packet_socket(int engine, int proto)
 	return rs;
 }
 
-int cnct_packet_recv(socket_t rs, char *packet, int len)
+ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
 {
 	LOG_IN;
 	LOG_OUT_RET(recvfrom(rs, packet, len, 0, NULL, NULL));

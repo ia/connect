@@ -106,13 +106,13 @@ int packet_recv(int fd)
 	struct ether_header *eh = NULL;
 	
 	if (ioctl(fd, BIOCGBLEN, &blen) < 0) {
-		return;
+		return errno;
 	}
 	
 	printf("blen = %d\n", blen);
 	
 	if ((buf = malloc(blen)) == NULL) {
-		return;
+		return ENOMEM;
 	}
 	
 	(void) printf("reading packets ...\n");
@@ -123,7 +123,7 @@ int packet_recv(int fd)
 		n = read(fd, buf, blen);
 		
 		if (n <= 0) {
-			return;
+			return n;
 		}
 		
 		p = buf;
@@ -221,23 +221,23 @@ struct bpf_hdr {
 };
 */
 
-ssize_t cnct_packet_recv(socket_t fd, char *packet, size_t len)
+ssize_t cnct_packet_recv(socket_t fd, unsigned char *packet, size_t len)
 {
+	LOG_IN;
+	
 	char *mbuf = NULL;
 	char *pbuf = NULL;
 	ssize_t rx = 0;
 	struct bpf_hdr *bh = NULL;
 	struct ether_header *eh = NULL;
 	
-	// TODO: check this section in QNX
-	/*
+	// TODO: fix len management: rx_len / rq_len
 	if (ioctl(fd, BIOCGBLEN, &len) < 0) {
-		return;
+		return errno;
 	}
-	*/
-
+	
 	if ((mbuf = malloc(len)) == NULL) {
-		return;
+		return errno;
 	}
 	
 	(void) memset(mbuf, '\0', len);
@@ -277,16 +277,31 @@ ssize_t cnct_packet_recv(socket_t fd, char *packet, size_t len)
 		/* one line copy:
 		 *
 		 */
-		memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen,  ((struct bpf_hdr *) pbuf)->bh_caplen);
-		pbuf += BPF_WORDALIGN(((struct bpf_hdr *) pbuf)->bh_hdrlen + ((struct bpf_hdr *) pbuf)->bh_caplen);
+		DBG_INFO(printf("\nmemcpy --->\n");)
+		//memcpy(packet, pbuf + ((struct bpf_hdr *) pbuf)->bh_hdrlen,  ((struct bpf_hdr *) pbuf)->bh_caplen);
+		(void) memcpy(packet, pbuf + bh->bh_hdrlen, bh->bh_caplen);
+		DBG_INFO(printf("\nmemcpy <---\n");)
+		rx = bh->bh_caplen;
+		DBG_INFO(printf("\nbh_caplen0 == %d %d\n",((struct bpf_hdr *) pbuf)->bh_caplen, bh->bh_caplen );)
+		DBG_INFO(printf("\npbuf += --->\n");)
+		//pbuf += BPF_WORDALIGN(((struct bpf_hdr *) pbuf)->bh_hdrlen + ((struct bpf_hdr *) pbuf)->bh_caplen);
+		pbuf += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
+		DBG_INFO(printf("\npbuf += <---\n");)
 		
 		// memcpy(packet, pbuf + bh->bh_hdrlen, bh->bh_caplen);
 		//pbuf += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
 	}
 	
-	free(mbuf);
+	DBG_INFO(printf("\nbh_caplen == %d %d\n",((struct bpf_hdr *) pbuf)->bh_caplen, bh->bh_caplen );)
 	
-	return bh->bh_caplen;
+	DBG_INFO(printf("\nfree(mbuf) --->\n");)
+	free(mbuf);
+	DBG_INFO(printf("\nfree(mbuf) <---\n");)
+	
+	LOG_OUT;
+	
+	//return bh->bh_caplen;
+	return rx;
 }
 
 socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)

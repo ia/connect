@@ -27,8 +27,6 @@
 
 //#include <net/bpf.h>
 
-#include <net/ethernet.h>
-
 #ifdef __QNX__
 
 #include <io-pkt/sys/types_bsd.h>
@@ -40,6 +38,10 @@
 #include <net/if_media.h>
 #include <net/netbyte.h>
 #include <net80211/ieee80211_var.h>
+
+#else
+
+#include <net/ethernet.h>
 
 #endif
 

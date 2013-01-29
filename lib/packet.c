@@ -3,11 +3,13 @@
 
 //#define cnct_mtu 64*1024
 
-int cnct_packet_print(char *packet, int proto, int len)
+int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 {
+	LOG_IN;
+	
 	/* TODO: FIXME: if proto == IPPROTO_IP && cnct_sys == LINUX { seek packet to IP header before process } */
-	int i;
-	printf("[len=%d] ", len);
+	ssize_t i;
+	printf("[len=%zd] ", len);
 	for (i = 0; i < len; i++) {
 		printf("%02X", *((unsigned char *) packet + i));
 		if (i == 14) {
@@ -17,6 +19,8 @@ int cnct_packet_print(char *packet, int proto, int len)
 			printf(" ");
 		}
 	}
+	
+	LOG_OUT;
 	return 0;
 }
 
@@ -97,7 +101,7 @@ int cnct_filter_pcp(char *rule)
 	return 0;
 }
 
-int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(char *, int, int))
+int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *, int, ssize_t))
 {
 	LOG_IN;
 	
@@ -110,17 +114,33 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 	
 	ssize_t rx = 0;
 	
-	MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
+	/* TODO: fix this crap; implement cnct_iface_getlen */
+	size_t len = 0;
+#ifdef CNCT_SYS_BSD
+	if (ioctl(rs, BIOCGBLEN, &len) < 0) {
+		perror("ioctl");
+		return errno;
+	}
+#else
+	len = cnct_mtu;
+#endif
+	
+	DBG_INFO(printf("\nLEN == %zd\n", len);)
+	MALLOC_TYPE_SIZE(unsigned char, packet, len);
 	
 	//while (rx > 0) {
-		memset(packet, '\0', cnct_mtu);
-		rx = cnct_packet_recv(rs, packet, cnct_mtu);
+		(void) memset(packet, '\0', len);
+		DBG_INFO(printf("\nRX --->\n");)
+		rx = cnct_packet_recv(rs, packet, len);
+		DBG_INFO(printf("\nRX <---\n");)
 		if (rx == -1) {
 			perror("dump: recv");
 		} else if (rx == 0) {
 			printf("dump: client shutdown\n");
 		} else {
+			DBG_INFO(printf("\ncallback --->\n");)
 			(*callback)(packet, proto, rx);
+			DBG_INFO(printf("\ncallback <---\n");)
 		}
 	//}
 	

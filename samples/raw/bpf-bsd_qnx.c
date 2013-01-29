@@ -34,7 +34,25 @@ int open_dev(void);
 int check_dlt(int fd);
 int set_options(int fd, char *iface);
 int set_filter(int fd);
-void read_packets(int fd);
+ssize_t read_packets(int fd, unsigned char *packet);
+int packet_print(unsigned char *packet, int len);
+
+int packet_print(unsigned char *packet, ssize_t len)
+{
+	ssize_t i;
+	printf("[len=%d] ", len);
+	for (i = 0; i < len; i++) {
+		printf("%02X", *((unsigned char *) packet + i));
+		if (i == 14) {
+			printf("\n");
+			break;
+		} else {
+			printf(" ");
+		}
+	}
+	
+	return 0;
+}
 
 
 int main(int argc, char *argv[])
@@ -66,9 +84,14 @@ int main(int argc, char *argv[])
 		err(EXIT_FAILURE, "set_filter");
 	}
 	
-	read_packets(fd);
+	unsigned char *packet = malloc(32*1024);
+	(void) memset(packet, '\0', 32*1024);
+	ssize_t rx = read_packets(fd, packet);
 	
-	err(EXIT_FAILURE, "read_packets");
+	packet_print(packet, rx);
+	
+	//err(EXIT_FAILURE, "read_packets");
+	return 0;
 }
 
 int open_dev()
@@ -185,7 +208,7 @@ int set_filter(int fd)
 	return 0;
 }
 
-void read_packets(int fd)
+ssize_t read_packets(int fd, unsigned char *packet)
 {
 	char *buf = NULL;
 	char *p = NULL;
@@ -206,7 +229,7 @@ void read_packets(int fd)
 	
 	(void) printf("reading packets ...\n");
 	
-	for ( ; ; ) {
+	// for ( ; ; ) {
 		(void) memset(buf, '\0', blen);
 		
 		n = read(fd, buf, blen);
@@ -236,9 +259,14 @@ void read_packets(int fd)
 			*/
 			printf("[stype=%u] ", (int) eh->ether_type);
 			printf("[utype=%u]\n", (unsigned int) eh->ether_type);
-
+			
+			(void) memcpy(packet, p + bh->bh_hdrlen, bh->bh_caplen);
+			
 			p += BPF_WORDALIGN(bh->bh_hdrlen + bh->bh_caplen);
 		}
-	}
+		
+		return n;
+		
+	// }
 }
 
