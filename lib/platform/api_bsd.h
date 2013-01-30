@@ -2,6 +2,10 @@
 #ifndef _API_BSD_H_
 #define _API_BSD_H_
 
+#ifndef _BSD_SOURCE
+#define _BSD_SOURCE
+#endif
+
 /* includes */
 
 #include <stdio.h>
@@ -26,6 +30,8 @@
 //#include <linux/filter.h>
 
 //#include <net/bpf.h>
+
+#include <netinet/ip.h>
 
 #ifdef __QNX__
 

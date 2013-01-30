@@ -3,7 +3,7 @@
 
 //#define cnct_mtu 64*1024
 
-int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
+int cnct_packet_print_legacy(unsigned char *packet, int proto, ssize_t len)
 {
 	LOG_IN;
 	
@@ -12,6 +12,61 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 	printf("[len=%zd] ", len);
 	for (i = 0; i < len; i++) {
 		printf("%02X", *((unsigned char *) packet + i));
+		if (i == 14) {
+			printf("\n");
+			break;
+		} else {
+			printf(" ");
+		}
+	}
+	
+	LOG_OUT;
+	return 0;
+}
+
+int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
+{
+	
+	LOG_IN;
+	
+	ssize_t i;
+	
+	if (len > 14) {
+		// dump ethernet header:
+		// 00:11:22:33:44:55 <<< 55:44:33:22:11:00 | 0x0000 | ...
+		size_t len_eth = 50;
+		void *str = malloc(len_eth);
+		if (!str) {
+			printf("malloc error\n");
+			return ENOMEM;
+		}
+		
+		snprintf(str, len_eth, "%02X:%02X:%02X:%02X:%02X:%02X <<< %02X:%02X:%02X:%02X:%02X:%02X | 0x%02X%02X |",
+			packet[0], packet[1], packet[2], packet[3], packet[4], packet[5],
+				packet[6], packet[7], packet[8], packet[9], packet[10], packet[11],
+					packet[12], packet[13]);
+		
+		printf("%s", (char *) str);
+		
+		struct ether_header *eth = NULL;
+		eth = (struct ethernet_header *) packet;
+		if (eth->ether_type == 0x0008) {
+			printf("[IP]");
+			
+			struct ip *iph = NULL;
+			iph = (struct ip *) (packet + (2 * ETHER_ADDR_LEN) + 2);
+			printf(" | v%u",  iph->ip_v);
+			printf(" | cksm=0x%04X",  iph->ip_sum);
+		}
+		
+		printf("\n");
+		free(str);
+	}
+	
+	printf("[len=%zd] ", len);
+	for (i = 0; i < len; i++) {
+	//	printf("%02X", *((unsigned char *) packet + i));
+		printf("%02X",  packet[i]);
 		if (i == 14) {
 			printf("\n");
 			break;

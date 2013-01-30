@@ -182,13 +182,20 @@ int demo_tcpsendmsg(const char *argv[])
 /* stand alone connect API based sample for dumping packets using BPF*/
 int demo_bpfdump(const char *argv[])
 {
-	/* engine, interface, proto, rule */
+	char *iface = NULL;
+	
 	if (argv[2]) {
 		printf("iface = %s\n", argv[2]);
+		size_t len = strlen(argv[2]);
+		iface = malloc(len);
+		memset(iface, '\0', len);
+		memcpy(iface, argv[2], len);
 	} else {
 		printf("iface = NULL (using en0 by default)\n");
 	}
-	cnct_packet_dump(CNCT_PACKENGINE_BPF, ((argv[2]) ? (argv[2]) : NULL), 0, NULL, NULL);
+	
+	/* engine, interface, proto, rule */
+	cnct_packet_dump(CNCT_PACKENGINE_BPF, iface, 0, NULL, NULL);
 	return 0;
 }
 
