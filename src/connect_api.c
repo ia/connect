@@ -183,7 +183,12 @@ int demo_tcpsendmsg(const char *argv[])
 int demo_bpfdump(const char *argv[])
 {
 	/* engine, interface, proto, rule */
-	cnct_packet_dump(CNCT_PACKENGINE_BPF, NULL, 0, NULL, NULL);
+	if (argv[2]) {
+		printf("iface = %s\n", argv[2]);
+	} else {
+		printf("iface = NULL (using en0 by default)\n");
+	}
+	cnct_packet_dump(CNCT_PACKENGINE_BPF, ((argv[2]) ? (argv[2]) : NULL), 0, NULL, NULL);
 	return 0;
 }
 
