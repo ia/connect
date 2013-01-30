@@ -136,6 +136,11 @@ int set_options(int fd, char *iface)
 		return -1;
 	}
 	
+	/* Set promiscuous mode */
+	if (ioctl(fd, BIOCPROMISC, &enable) < 0) {
+		return -1;
+	}
+	
 	return 0;
 }
 
