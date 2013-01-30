@@ -3,9 +3,12 @@
 # UNIX platform detection - takes from environment directly
 # e.g., SYS=osx make -f connect.gm
 
-ifeq ($(SYS),osx)
+UNAME := $(shell uname)
+
+ifeq ($(UNAME),Darwin)
 	LIBD_EXT := dylib
 	LIBS_EXT := A.dylib
+	LIBFLAGS := -dynamiclib
 else
 	LIBD_EXT := so
 	LIBS_EXT := a
@@ -133,7 +136,7 @@ dir: clean
 
 build-native-dynamic-lib: $(LIB_SOCKET)
 	@echo "\n ----> making target:" $@ "<----\n"
-	$(CC) $(CFLAGS) $(LDFLAGS) -fPIC -shared $(LIB_SOCKET) -o $(OUT_LIB_DIR)/lib$(LIB_NAME).$(LIBD_EXT)
+	$(CC) $(CFLAGS) $(LDFLAGS) -fPIC -shared $(LIBFLAGS) $(LIB_SOCKET) -o $(OUT_LIB_DIR)/lib$(LIB_NAME).$(LIBD_EXT)
 
 build-native-dynamic-bin: $(BIN_SRC)
 	@echo "\n ----> making target:" $@ "<----\n"
