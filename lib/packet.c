@@ -35,18 +35,19 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 		// dump ethernet header:
 		// 00:11:22:33:44:55 <<< 55:44:33:22:11:00 | 0x0000 | ...
 		size_t len_eth = 50;
-		void *str = malloc(len_eth);
-		if (!str) {
+		void *str_eth = malloc(len_eth);
+		if (!str_eth) {
 			printf("malloc error\n");
 			return ENOMEM;
 		}
 		
-		snprintf(str, len_eth, "%02X:%02X:%02X:%02X:%02X:%02X <<< %02X:%02X:%02X:%02X:%02X:%02X | 0x%02X%02X |",
+		snprintf(str_eth, len_eth, "%02X:%02X:%02X:%02X:%02X:%02X <<< %02X:%02X:%02X:%02X:%02X:%02X | 0x%02X%02X |",
 			packet[0], packet[1], packet[2], packet[3], packet[4], packet[5],
 				packet[6], packet[7], packet[8], packet[9], packet[10], packet[11],
 					packet[12], packet[13]);
 		
-		printf("%s", (char *) str);
+		printf("[len=%05zd] ", len);
+		printf("%s", (char *) str_eth);
 		
 		struct ether_header *eth = NULL;
 		eth = (struct ethernet_header *) packet;
@@ -55,17 +56,32 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 			
 			struct ip *iph = NULL;
 			iph = (struct ip *) (packet + (2 * ETHER_ADDR_LEN) + 2);
-			printf(" | v%u",  iph->ip_v);
-			printf(" | cksm=0x%04X",  iph->ip_sum);
+			printf(" | ver=%u",      iph->ip_v);
+			
+			/* TODO: implementing print.c for packet output management to avoid such crap */
+			if (iph->ip_v == 4) {
+				char *ip_src = malloc(INET_ADDRSTRLEN);
+				char *ip_dst = malloc(INET_ADDRSTRLEN);
+				
+				inet_ntop(AF_INET, &iph->ip_src, ip_src, INET_ADDRSTRLEN);
+				inet_ntop(AF_INET, &iph->ip_dst, ip_dst, INET_ADDRSTRLEN);
+				
+				printf(" | %s >>> %s",    ip_src, ip_dst);
+				printf(" | proto=0x%02X", iph->ip_p);
+				printf(" | cksm=0x%04X",  iph->ip_sum);
+				
+				free(ip_dst);
+				free(ip_src);
+			}
 		}
 		
 		printf("\n");
-		free(str);
+		free(str_eth);
 	}
 	
+	/*
 	printf("[len=%zd] ", len);
 	for (i = 0; i < len; i++) {
-	//	printf("%02X", *((unsigned char *) packet + i));
 		printf("%02X",  packet[i]);
 		if (i == 14) {
 			printf("\n");
@@ -74,6 +90,7 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 			printf(" ");
 		}
 	}
+	*/
 	
 	LOG_OUT;
 	return 0;
