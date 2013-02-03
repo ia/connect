@@ -18,6 +18,49 @@ Thanks to: n0limit,BackBon3
 #include "string.h"
 #include "ndsniff.h"
 
+const WCHAR deviceNameBuffer[] = L"\\Device\\PaketFilter";
+PDEVICE_OBJECT g_device;
+
+NTSTATUS OnOpen(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+{
+	DbgPrint("ndSniff OnOpen called\n");
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS OnClose(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+{
+	DbgPrint("ndSniff OnClose called\n");
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS OnRead(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+{
+	DbgPrint("ndSniff OnRead called\n");
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS OnWrite(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+{
+	DbgPrint("ndSniff OnWrite called\n");
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS OnIoControl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+{
+	PIO_STACK_LOCATION  IrpSp;
+	ULONG FunctionCode;
+	IrpSp = IoGetCurrentIrpStackLocation(Irp);
+	FunctionCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
+	
+	switch (FunctionCode) {
+		default:
+			break;
+	}
+	
+	DbgPrint("ndSniff OnIoControl called\n");
+	return STATUS_SUCCESS;
+}
+
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT theDriverObject, IN PUNICODE_STRING theRegistryPath)
 {
 	UINT aMediumIndex = 0;
@@ -25,6 +68,21 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT theDriverObject, IN PUNICODE_STRING theRe
 	NDIS_MEDIUM aMediumArray = NdisMedium802_3; // specifies a ethernet network
 	UNICODE_STRING anAdapterName;
 	NDIS_PROTOCOL_CHARACTERISTICS aProtocolChar;
+	
+	NTSTATUS ret;
+	UNICODE_STRING deviceName;
+	
+	RtlInitUnicodeString(&deviceName, deviceNameBuffer);
+	
+	DbgPrint("Creating virtual device\n");
+	
+	ret = IoCreateDevice(theDriverObject, 0, &deviceName, 0x00001234, 0, TRUE, &g_device);
+	if (ret != STATUS_SUCCESS) {
+		char _t[255];
+		_snprintf(_t, 253, "DriverEntry: ERROR IoCreateDevice failed with error 0x%08X", ret);
+		DbgPrint("%s\n",_t);
+		return ret;
+	}
 	
 	//This string must match that specified in the registery (under Services) when the protocol was installed
 	NDIS_STRING aProtoName = NDIS_STRING_CONST("ndsniff");
@@ -37,6 +95,12 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT theDriverObject, IN PUNICODE_STRING theRe
 	//{449F621A-04BC-4896-BBCB-7A93708EA9B8}
 	NdisInitializeEvent(&gCloseWaitEvent);
 	theDriverObject->DriverUnload = OnUnload;
+	
+	theDriverObject->MajorFunction[IRP_MJ_CREATE] = OnOpen;
+	theDriverObject->MajorFunction[IRP_MJ_CLOSE] = OnClose;
+	theDriverObject->MajorFunction[IRP_MJ_READ] = OnRead;
+	theDriverObject->MajorFunction[IRP_MJ_WRITE] = OnWrite;
+	theDriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = OnIoControl;
 	
 	RtlZeroMemory(&aProtocolChar, sizeof(NDIS_PROTOCOL_CHARACTERISTICS));
 	
@@ -347,6 +411,7 @@ INT OnReceivePacket(IN NDIS_HANDLE ProtocolBindingContext, IN PNDIS_PACKET Packe
 
 VOID OnUnload(IN PDRIVER_OBJECT DriverObject)
 {
+	NTSTATUS ret;
 	NDIS_STATUS Status;
 	DbgPrint("ndSniff: OnUnload called\n");
 	NdisResetEvent(&gCloseWaitEvent);
@@ -365,6 +430,15 @@ VOID OnUnload(IN PDRIVER_OBJECT DriverObject)
 	}
 	
 	DbgPrint("NdisDeregisterProtocol done\n");
+	
+	DbgPrint("Deleting virtual device\n");
+	//ret = IoDeleteDevice(&g_device);
+	ret = IoDeleteDevice(DriverObject->DeviceObject); 
+	if (ret != STATUS_SUCCESS) {
+		char _t[255];
+		_snprintf(_t, 253, "DriverEntry: ERROR IoDeleteDevice failed with error 0x%08X", ret);
+		DbgPrint("%s\n",_t);
+	}
 }
 
 /*
