@@ -28,7 +28,11 @@ socket_t cnct_packet_socket(int engine, int proto)
 	int rs;
 	
 	if (engine == CNCT_PACKENGINE_BPF) {
-		rs = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP));
+		rs = socket(CNCT_SOCKET_RAW);
+	//	rs = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP));
+		if (cnct_filter_bpf(NULL, rs)) {
+			return -1;
+		}
 	} else {
 		(proto == IPPROTO_RAW) ? (rs = socket(CNCT_SOCKET_RAW)) : (rs = socket(CNCT_SOCKET_IP));
 	}
