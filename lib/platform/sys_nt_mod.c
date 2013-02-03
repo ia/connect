@@ -18,8 +18,36 @@ Thanks to: n0limit,BackBon3
 #include "string.h"
 #include "ndsniff.h"
 
+struct timeval {
+        long    tv_sec;         ///< seconds
+        long    tv_usec;        ///< microseconds
+};
+
 const WCHAR deviceNameBuffer[] = L"\\Device\\PaketFilter";
 PDEVICE_OBJECT g_device;
+
+/*
+ * -- time management links:
+ *  http://msdn.microsoft.com/en-us/library/windows/hardware/ff553068(v=vs.85).aspx
+ *  http://msdn.microsoft.com/en-us/library/windows/hardware/ff545622(v=vs.85).aspx
+ *  http://blogs.msdn.com/b/mikekelly/archive/2009/01/17/unix-time-and-windows-time.aspx
+ *  http://curl.haxx.se/mail/lib-2005-01/0089.html
+ *  http://drp.su/ru/driver_dev/07_07_9-10.htm
+ */
+
+int gettimeofday(struct timeval *dst)
+{
+	LARGE_INTEGER SystemTime;
+	LARGE_INTEGER LocalTime;
+	
+	KeQuerySystemTime(&SystemTime);
+	ExSystemTimeToLocalTime(&SystemTime, &LocalTime);
+	
+	dst->tv_sec  = (LONG) (LocalTime.QuadPart / 10000000 - 11644473600);
+	dst->tv_usec = (LONG)((LocalTime.QuadPart % 10000000) / 10);
+	
+	return 0;
+}
 
 NTSTATUS OnOpen(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
