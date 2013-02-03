@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <asm/types.h>
@@ -75,13 +76,100 @@ orig_len:       the length of the packet as it appeared on the network when it w
 
 */
 
-int file_write_header(const char *pcap_file)
+int file_write_header(const char *pcap_file, guint32 snaplen)
 {
-	return 0;
+	int fd = open(pcap_file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
+	if (fd == -1) {
+		perror("open");
+		return errno;
+	}
+	
+	int pcap_hdr_l = sizeof(pcap_hdr_t);
+	pcap_hdr_t *pcap_hdr = malloc(pcap_hdr_l);
+	if (!pcap_hdr) {
+		perror("malloc");
+		return ENOMEM;
+	}
+	
+	memset(pcap_hdr, '\0', pcap_hdr_l);
+	
+	pcap_hdr->magic_number  = 0xa1b2c3d4;
+	pcap_hdr->version_major = 0x2;
+	pcap_hdr->version_minor = 0x4;
+	pcap_hdr->thiszone      = 0x0;
+	pcap_hdr->snaplen       = ((snaplen) ? snaplen : 0xffff);
+	pcap_hdr->network       = 0x1;
+	
+	int hdr_l = write(fd, pcap_hdr, pcap_hdr_l);
+	if (hdr_l != pcap_hdr_l) {
+		perror("write");
+		return errno;
+	} else {
+		printf("Write pcap_hdr done\n");
+	}
+	
+	return fd;
 }
 
-int file_write(const char *pcap_file, int fd)
+int file_write(const char *pcap_file, int fd, guint32 snaplen)
 {
+	int pd = -1;
+	
+	snaplen = ((snaplen) ? snaplen : 0xFFFF);
+	
+	if (pcap_file) {
+		pd = file_write_header(pcap_file, snaplen);
+	} else {
+		pd = fd;
+	}
+	
+	int pcap_pkt_hdr_l = sizeof(pcaprec_hdr_t);
+	pcaprec_hdr_t *pcap_pkt_hdr = malloc(pcap_pkt_hdr_l);
+	if (!pcap_pkt_hdr) {
+		perror("malloc");
+		return ENOMEM;
+	}
+	memset(pcap_pkt_hdr, '\0', pcap_pkt_hdr_l);
+	
+	struct timeval time_stamp;
+	gettimeofday(&time_stamp, NULL);
+	
+	pcap_pkt_hdr->ts_sec = time_stamp.tv_sec;
+	pcap_pkt_hdr->ts_usec = time_stamp.tv_usec;
+	
+	/* from recv()/read() on sniffed packed */
+	pcap_pkt_hdr->orig_len = 1514;
+	/* detecting actual size of packet for saving */
+	pcap_pkt_hdr->incl_len = ((pcap_pkt_hdr->orig_len <= snaplen) ? pcap_pkt_hdr->orig_len : snaplen);
+	
+	int pkt_hdr_w = write(pd, pcap_pkt_hdr, pcap_pkt_hdr_l);
+	if (pkt_hdr_w != pcap_pkt_hdr_l) {
+		perror("write");
+		printf(" pcap_pkt_hdr_l : %d\n", pcap_pkt_hdr_l);
+		printf("      pkt_hdr_w : %d\n", pkt_hdr_w);
+		
+		if (!pkt_hdr_w) {
+			printf("Error: no pcap packet header to write\n");
+			return -1;
+		}
+	}
+	
+	void *pkt = malloc(pcap_pkt_hdr->incl_len);
+	if (!pkt) {
+		perror("malloc");
+		return ENOMEM;
+	}
+	memset(pkt, '\0', pcap_pkt_hdr->incl_len);
+	
+	unsigned int pkt_l = write(pd, pkt, pcap_pkt_hdr->incl_len);
+	if (pkt_l != pcap_pkt_hdr->incl_len) {
+		perror("write");
+	}
+	
+	printf("Write pcap pkt done\n");
+	
+	close(pd);
+	
 	return 0;
 }
 
@@ -106,13 +194,18 @@ int file_read_header(const char *pcap_file)
 		return errno;
 	}
 	
+	if (pcap_hdr->magic_number != 0xA1B2C3D4) {
+		printf("Error: not a valid pcap file!\n");
+		return -1;
+	}
+	
 	printf("\n\tdump header pcap file\n");
-	printf(" magic_number : 0x%X\n",        pcap_hdr->magic_number);
-	printf(" version mj   : 0x%X\n",        pcap_hdr->version_major);
-	printf(" version mn   : 0x%X\n",        pcap_hdr->version_minor);
-	printf(" thiszone     : 0x%X ( %d )\n", pcap_hdr->thiszone, pcap_hdr->thiszone);
-	printf(" snaplen      : 0x%X ( %d )\n", pcap_hdr->snaplen, pcap_hdr->snaplen);
-	printf(" network      : 0x%X\n",        pcap_hdr->network);
+	printf(" magic_number : 0x%08X\n",        pcap_hdr->magic_number);
+	printf(" version mj   : 0x%04X\n",        pcap_hdr->version_major);
+	printf(" version mn   : 0x%04X\n",        pcap_hdr->version_minor);
+	printf(" thiszone     : 0x%08X ( %d )\n", pcap_hdr->thiszone, pcap_hdr->thiszone);
+	printf(" snaplen      : 0x%04X ( %d )\n", pcap_hdr->snaplen, pcap_hdr->snaplen);
+	printf(" network      : 0x%08X\n",        pcap_hdr->network);
 	
 	return fd;
 }
@@ -127,14 +220,28 @@ int file_read(const char *pcap_file, int fd)
 		pd = fd;
 	}
 	
+	if (pd <= 0) {
+		return -1;
+	}
+	
 	int pcap_pkt_hdr_l = sizeof(pcaprec_hdr_t);
 	pcaprec_hdr_t *pcap_pkt_hdr = malloc(pcap_pkt_hdr_l);
+	if (!pcap_pkt_hdr) {
+		perror("malloc");
+		return ENOMEM;
+	}
+	memset(pcap_pkt_hdr, '\0', pcap_pkt_hdr_l);
 	
 	int pkt_hdr_r = read(pd, pcap_pkt_hdr, pcap_pkt_hdr_l);
 	if (pkt_hdr_r != pcap_pkt_hdr_l) {
 		perror("read");
 		printf(" pcap_pkt_hdr_l : %d\n", pcap_pkt_hdr_l);
 		printf("      pkt_hdr_r : %d\n", pkt_hdr_r);
+		
+		if (!pkt_hdr_r) {
+			printf("Error: no pcap packet header to read\n");
+			return -1;
+		}
 	}
 	
 	printf("\n\tdump header for first pcap packet\n");
@@ -144,7 +251,13 @@ int file_read(const char *pcap_file, int fd)
 	printf(" orig_len     : %X ( %d )\n", pcap_pkt_hdr->orig_len, pcap_pkt_hdr->orig_len);
 	
 	void *pkt = malloc(pcap_pkt_hdr->incl_len);
-	int pkt_l = read(pd, pkt, pcap_pkt_hdr->incl_len);
+	if (!pkt) {
+		perror("malloc");
+		return ENOMEM;
+	}
+	memset(pkt, '\0', pcap_pkt_hdr->incl_len);
+	
+	unsigned int pkt_l = read(pd, pkt, pcap_pkt_hdr->incl_len);
 	if (pkt_l != pcap_pkt_hdr->incl_len) {
 		perror("read");
 	}
@@ -191,7 +304,7 @@ int main(int argc, const char* argv[])
 	if (!strcmp(argv[1], "r")) {
 		fd = file_read(argv[2], 0);
 	} else if (!strcmp(argv[1], "w")) {
-		fd = file_write(argv[2], 0);
+		fd = file_write(argv[2], 0, 0 /* snaplen: 0 == 0xFFFF*/);
 	} else {
 		printf("Error: unsupported operation: %s\n", argv[1]);
 		usage(argv[0]);
