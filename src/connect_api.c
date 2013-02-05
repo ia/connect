@@ -187,7 +187,7 @@ int demo_bpfdump(const char *argv[])
 	if (argv[2]) {
 		printf("iface = %s\n", argv[2]);
 		size_t len = strlen(argv[2]);
-		iface = malloc(len);
+		iface = (char *) malloc(len);
 		memset(iface, '\0', len);
 		memcpy(iface, argv[2], len);
 	} else {

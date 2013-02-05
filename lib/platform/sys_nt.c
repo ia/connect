@@ -14,6 +14,48 @@ Purpose: Sniff data and filter it on text.
 Thanks to: n0limit,BackBon3
 */
 
+/*
+ * windows driver model related links:
+ *
+
+MSDN:
+
+ Creating a Device Object
+http://msdn.microsoft.com/en-us/library/windows/hardware/ff546240%28v=vs.85%29.aspx
+
+ IoCreateDevice
+http://msdn.microsoft.com/en-us/library/windows/hardware/ff548397%28v=vs.85%29.aspx
+
+ Specifying Device Types
+http://msdn.microsoft.com/en-us/library/windows/hardware/ff563821%28v=vs.85%29.aspx
+
+ CTL_CODE
+http://msdn.microsoft.com/en-us/library/ms902086.aspx
+
+ NTSTATUS values
+http://msdn.microsoft.com/en-us/library/cc704588.aspx
+
+CODEPROJECT:
+
+ Introduction to Drivers
+http://www.codeproject.com/Articles/9504/Driver-Development-Part-1-Introduction-to-Drivers
+
+ Raw Ethernet Packet Sending
+http://www.codeproject.com/Articles/5292/Raw-Ethernet-Packet-Sending
+
+OTHER:
+
+ Device and Driver Layering
+http://www-user.tu-chemnitz.de/~heha/oney_wdm/ch02b.htm
+
+ DDK Quick Reference
+http://www.perisoft.net/engineer/wdmcard.htm
+
+
+ *
+ *
+ */
+
 #pragma warning(disable:4700)
 
 #define NDIS50 1
@@ -696,6 +738,28 @@ int cnct_filter_bpf(char *iface, socket_t rs)
 	LOG_IN;
 	
 	/* TODO: implementation: dump goes here */
+	
+	LOG_OUT;
+	
+	return 0;
+}
+
+socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
+{
+	LOG_IN;
+	
+	/* TODO: implementation: init of device goes here */
+	
+	LOG_OUT;
+	
+	return CNCT_INVALID;
+}
+
+ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
+{
+	LOG_IN;
+	
+	/* TODO: implementation: ioctl for device to get packet goes here */
 	
 	LOG_OUT;
 	

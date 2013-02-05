@@ -200,6 +200,7 @@
 	#define  CNCT_SYS       CNCT_SYS_NT
 	#pragma message("TARGET: CNCT_SYS_NT")
 	//#include "sys_nt.h"
+	#define cnct_mtu  1024 *  4
 #else
 	#error "define SYS_NAME manually"
 #endif

@@ -35,7 +35,7 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 		// dump ethernet header:
 		// 00:11:22:33:44:55 <<< 55:44:33:22:11:00 | 0x0000 | ...
 		size_t len_eth = 50;
-		void *str_eth = malloc(len_eth);
+		char *str_eth = (char *) malloc(len_eth);
 		if (!str_eth) {
 			printf("malloc error\n");
 			return ENOMEM;
@@ -50,7 +50,7 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 		printf("%s", (char *) str_eth);
 		
 		struct ether_header *eth = NULL;
-		eth = (struct ethernet_header *) packet;
+		eth = (struct ether_header *) packet;
 		if (eth->ether_type == 0x0008) {
 			printf("[IP]");
 			
@@ -60,8 +60,8 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 			
 			/* TODO: implementing print.c for packet output management to avoid such crap */
 			if (iph->ip_v == 4) {
-				char *ip_src = malloc(INET_ADDRSTRLEN);
-				char *ip_dst = malloc(INET_ADDRSTRLEN);
+				char *ip_src = (char *) malloc(INET_ADDRSTRLEN);
+				char *ip_dst = (char *) malloc(INET_ADDRSTRLEN);
 				
 				inet_ntop(AF_INET, &iph->ip_src, ip_src, INET_ADDRSTRLEN);
 				inet_ntop(AF_INET, &iph->ip_dst, ip_dst, INET_ADDRSTRLEN);
@@ -132,11 +132,11 @@ int cnct_packet_recv(socket_t rs, int proto)
 	
 	int rx = 0;
 	
-	MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
+	MALLOC_TYPE_SIZE(unsigned char, packet, cnct_mtu);
 	
 	while (1) {
 		memset(packet, '\0', cnct_mtu);
-		rx = recvfrom(rs, packet, cnct_mtu, 0, NULL, NULL);
+		rx = recvfrom(rs, (char *) packet, cnct_mtu, 0, NULL, NULL);
 		cnct_packet_print(packet, proto, rx);
 		//break;
 	}
@@ -221,8 +221,8 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 	return 0;
 }
 
-#ifdef FALSE
-int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(char *, int, int))
+#if 0
+int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *, int, ssize_t))
 {
 	LOG_IN;
 	
