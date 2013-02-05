@@ -3,6 +3,8 @@
 
 /* --------------------  kernel space routine  ----------------- */
 
+#pragma message("SYS_NT: kernel space")
+
 /*
 Kernel space sniffer.
 Guidelines used: Rootkits, subverting the windows kernel
@@ -679,9 +681,11 @@ ntStatus = ZwOpenKey(&oHandle,FILE_READ_DATA,
 
 }*/
 
-#else
+#elif ( defined(SYS_NT) )
 
-/* --------------------  user space routine  ------------------- */
+/* --------------------  library space routine  ------------------- */
+
+#pragma message("SYS_NT: library space")
 
 #include "../connect.h"
 
@@ -695,6 +699,49 @@ int cnct_filter_bpf(char *iface, socket_t rs)
 	
 	LOG_OUT;
 	
+	return 0;
+}
+
+#else
+
+/* --------------------  user space routine  ------------------- */
+
+#pragma message("SYS_NT: user space")
+
+#include <stdio.h>
+#include <windows.h>
+#include <winioctl.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define SIOCTL_TYPE 40000
+#define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+int __cdecl main(int argc, char* argv[])
+{
+	HANDLE hDevice;
+	DWORD NombreByte;
+	int i;
+	unsigned char out[64*1024];
+	char *sayhello = "Hi! From UserLand";
+	
+	// Fills the array 'out' by zeros
+	ZeroMemory(out, sizeof(out));
+	
+	// Opens our Device
+	hDevice = CreateFile("\\\\.\\myDevice1", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	printf("Handle pointer: %p\n", hDevice);
+	
+	// We send a CTL command to read our message in kernel
+	DeviceIoControl(hDevice, IOCTL_HELLO, sayhello, strlen(sayhello), out, sizeof(out), &NombreByte, NULL);
+	
+	printf("[len=%d]", NombreByte);
+	for (i = 0; i < 20; i++) {
+		printf(" %02X", out[i]);
+	}
+	printf("\n");
+	
+	CloseHandle(hDevice); // Close the handle: We should observe the function CloseFunction is called
 	return 0;
 }
 
