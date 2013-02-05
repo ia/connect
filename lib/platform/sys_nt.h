@@ -15,6 +15,10 @@ This is the part for the sniffer.
 #define RESERVED(_p)              ((PPACKET_RESERVED)((_p)->ProtocolReserved))
 #define TRANSMIT_PACKETS          128
 
+#define SIOCTL_TYPE 40000
+#define FILE_DEVICE_ROOTKIT      0x00002a7b
+#define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA|FILE_WRITE_DATA)
+
 typedef struct _PACKET_RESERVED {
 	LIST_ENTRY  ListElement;
 	PIRP        Irp;

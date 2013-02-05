@@ -198,7 +198,7 @@
 #elif ( defined(SYS_NT) || defined(_WIN32) || defined(_WIN64) )
 	#define  CNCT_SYS_NT    CNCT_SYS_NT_T
 	#define  CNCT_SYS       CNCT_SYS_NT
-	#warning "TARGET: CNCT_SYS_NT"
+	#pragma message("TARGET: CNCT_SYS_NT")
 	//#include "sys_nt.h"
 #else
 	#error "define SYS_NAME manually"

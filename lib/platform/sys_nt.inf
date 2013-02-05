@@ -3,18 +3,18 @@
 ;
 ; http://bazaar.launchpad.net/~iaz/+junk/mirror-winddk/view/head:/7600.16385.1/src/network/ndis/filter/netlwf.inf
 ; http://www-pc.uni-regensburg.de/systemsw/TECHTOOL/w95/doc/SAMPLE.HTM
-; C:\WinDDK\7600.16385.1\tools\Chkinf\chkinf.bat ndsniff.inf
+; C:\WinDDK\7600.16385.1\tools\Chkinf\chkinf.bat sys_nt.inf
 ; inf2cat /driver:C:\path\to\dir\with\file.inf /os:7_x64
 ;
 
 [version]
-Signature   	= "$WINDOWS NT$"
+Signature   = "$WINDOWS NT$"
 ; HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class
-Class     	= NetService
-ClassGUID  	= {4D36E974-E325-11CE-BFC1-08002BE10318}
-Provider    	= %Cnct%
-DriverVer	=01/23/2013,1.0.0.1
-CatalogFile=ndsniff.cat
+Class       = NetService
+ClassGUID   = {4D36E974-E325-11CE-BFC1-08002BE10318}
+Provider    = %Cnct%
+DriverVer   = 01/23/2013,1.0.0.1
+CatalogFile = pf.cat
 
 [Manufacturer]
 %Cnct%=CNCT.NTamd64, NTAMD64
@@ -26,10 +26,10 @@ CatalogFile=ndsniff.cat
 ;%NdisLwf_Desc%=Install, MS_NdisLwf
 
 [CNCT.NTamd64]
-%ndsniff_Desc%=Install, PCKT_ndsniff
+%pf_Desc%=Install, PCKT_pf
 
 [NTAMD64]
-%ndsniff_Desc%=Install, PCKT_ndsniff
+%pf_Desc%=Install, PCKT_pf
 
 ;-------------------------------------------------------------------------
 ; Installation Section
@@ -38,24 +38,24 @@ CatalogFile=ndsniff.cat
 AddReg=Inst_Ndi
 Characteristics=0x40000
 ;NetCfgInstanceId="{5cbf81bd-5055-47cd-9055-a76b2b4e3697}"
-;Copyfiles = ndsniff_copyfiles
+;Copyfiles = pf_copyfiles
 CopyFiles = CopySys
 
 [SourceDisksNames]
-1=%ndsniff_Desc%,"",,
+1=%pf_Desc%,"",,
 
 [SourceDisksFiles]
-ndsniff.sys=1
+pf.sys=1
 
 [DestinationDirs]
 DefaultDestDir=12
-;ndsniff_copyfiles=12
+;pf_copyfiles=12
 
 ;[ndisniff_copyfiles]
-;ndsniff.sys,,,2
+;pf.sys,,,2
 
 [CopySys]
-ndsniff.sys
+pf.sys
 
 ;-------------------------------------------------------------------------
 ; Ndi installation support
@@ -102,6 +102,6 @@ HKR, Ndi\Interfaces,LowerRange,,"nolower"
 
 [Strings]
 Cnct = "Connect project"
-ndsniff_Desc = "NDIS basic packet filter"
-ndsniff_HelpText = "Packet dumper based on NDIS packet filter"
+pf_Desc = "NDIS basic packet filter"
+pf_HelpText = "Packet dumper based on NDIS packet filter"
 

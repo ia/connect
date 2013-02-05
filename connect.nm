@@ -80,13 +80,13 @@ clean:
 ndis-build:
 	cd $(LIB_DIR)\platform
 	build
-	copy sys_nt.sys $(OUT_BIN_DIR)
+	copy pf.sys $(OUT_BIN_DIR)
 
 ndis-sign:
 	inf2cat
 
 ndis-dist:
-	copy $(OUT_BIN_DIR)/sys_nt.sys $(DIST_DIR)\\
+	copy $(OUT_BIN_DIR)/pf.sys $(DIST_DIR)\\
 
 ndis-clean:
 	-del
