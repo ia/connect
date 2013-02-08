@@ -72,6 +72,30 @@ struct timeval {
         long    tv_usec;        ///< microseconds
 };
 
+#define modname "pf"
+
+#ifndef RELEASE
+#	define printk (fmt, ...)  DbgPrint(fmt ##__VA_ARGS__)
+#	define prnt   (msg     )  printk("%s: %s: %d: %s\n"   ,           modname, __func__, __LINE__, msg )
+#	define DBG_IN             printk("%s: == >> %s: %d\n" ,           modname, __func__, __LINE__      )
+#	define DBG_OUT            printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      )
+#	define DBG_OUT_RET  (r)   printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      ); return r
+#	define DBG_OUT_RETP (r)   printk("%s: << == %s: %d: ret = %d\n",  modname, __func__, __LINE__, r   ); return r
+#else
+#	define printk(fmt, ...)
+#endif
+
+/* TODO:
+ *  - debug log in file
+ *  - ddk typedefs
+ *  - Ptype -> type *
+ *  - define custom typedefs to C types
+ *  - split DriverEntry to functions
+ */
+
+#define module_init DriverEntry
+#define module_exit module_exit
+
 const WCHAR deviceLinkBuffer[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
 const WCHAR deviceNameBuffer[] = L"\\Device\\myDevice1"; // Define the device
 
@@ -85,7 +109,43 @@ int irp_request = 0;
 unsigned char *packet = NULL;
 size_t packet_size = 64 * 1024;
 
-// packet = ExAllocatePool(NonPagedPool, (aHeaderBufferLen + aBufferLen));
+/*
+ * windows data types:
+
+http://msdn.microsoft.com/en-us/library/windows/desktop/aa383751%28v=vs.85%29.aspx
+http://msdn.microsoft.com/en-us/library/aa932351.aspx
+
+ *
+ */
+
+#ifndef lint
+typedef  LARGE_INTEGER lint;
+#endif
+
+// typedef char          CHAR;
+// typedef char*        PCHAR;
+// typedef void          VOID;
+// typedef unsigned long ULONG;
+// typedef long          LONG;
+// typedef int           NDIS_STATUS;
+typedef  NTSTATUS      nt_ret;
+
+typedef  DEVICE_OBJECT dev_obj;
+// PDEVICE_OBJECT *dev_obj
+
+typedef  IO_STACK_LOCATION io_stack;
+// PIO_STACK_LOCATION *io_stack
+
+typedef  IRP               irp;
+// PIRP *irp
+
+// nothing IN
+// nothing OUT
+// nothing OPTIONAL
+
+#define nt_memzero (     src, len)    RtlZeroMemory  (         src, len)
+#define nt_memcpy  (dst, src, len)    RtlCopyMemory  (dst,     src, len)
+#define nt_malloc  (          len)    ExAllocatePool (NonPagedPool, len)
 
 /*
  * -- time management links:
@@ -95,61 +155,62 @@ size_t packet_size = 64 * 1024;
  *  http://curl.haxx.se/mail/lib-2005-01/0089.html
  *  http://drp.su/ru/driver_dev/07_07_9-10.htm
  */
-
 int gettimeofday(struct timeval *dst)
 {
-	LARGE_INTEGER SystemTime;
-	LARGE_INTEGER LocalTime;
+	LARGE_INTEGER system_time;
+	LARGE_INTEGER local_time;
 	
-	KeQuerySystemTime(&SystemTime);
-	ExSystemTimeToLocalTime(&SystemTime, &LocalTime);
+	KeQuerySystemTime(&system_time);
+	ExSystemTimeToLocalTime(&system_time, &local_time);
 	
-	dst->tv_sec  = (LONG) (LocalTime.QuadPart / 10000000 - 11644473600);
-	dst->tv_usec = (LONG)((LocalTime.QuadPart % 10000000) / 10);
+	dst->tv_sec  = (LONG) (local_time.QuadPart / 10000000 - 11644473600);
+	dst->tv_usec = (LONG)((local_time.QuadPart % 10000000) / 10);
 	
 	return 0;
 }
 
-NTSTATUS OnOpen(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+NTSTATUS OnOpen(IN PDEVICE_OBJECT dobj, IN PIRP irp)
 {
-	DbgPrint("ndSniff OnOpen called\n");
+	DBG_IN;
+	
+	printk("%s: ndSniff OnOpen called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnClose(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+NTSTATUS OnClose(IN PDEVICE_OBJECT dobj, IN PIRP irp)
 {
 	DbgPrint("ndSniff OnClose called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnRead(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+NTSTATUS OnRead(IN PDEVICE_OBJECT dobj, IN PIRP irp)
 {
 	DbgPrint("ndSniff OnRead called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnWrite(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+NTSTATUS OnWrite(IN PDEVICE_OBJECT dobj, IN PIRP irp)
 {
 	DbgPrint("ndSniff OnWrite called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnIoControl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+NTSTATUS OnIoControl(IN PDEVICE_OBJECT dobj, IN PIRP irp)
 {
-	PIO_STACK_LOCATION IrpSl;
-	ULONG CtlCode;
-	PVOID pBuf = Irp->AssociatedIrp.SystemBuffer;
+	PIO_STACK_LOCATION sl;
+	ULONG ctl_code;
+	PVOID ubuf = irp->AssociatedIrp.SystemBuffer;
 	PCHAR sayhello = "Hi! From kernelLand.";
 	
 	DbgPrint("ndSniff OnIoControl called\n");
 	
 	/* Initialise IrpSl */
-	IrpSl = IoGetCurrentIrpStackLocation(Irp);
+	sl = IoGetCurrentIrpStackLocation(irp);
 	
 	/* Catch the IOCTL Code */
-	CtlCode = IrpSl->Parameters.DeviceIoControl.IoControlCode;
+	ctl_code = sl->Parameters.DeviceIoControl.IoControlCode;
 	
-	switch (CtlCode) {
+	switch (ctl_code) {
 		case IOCTL_HELLO:
 			irp_request = 1;
 			
@@ -157,10 +218,10 @@ NTSTATUS OnIoControl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 				continue;
 			}
 			
-			//DbgPrint("Received from the userLand: %s", pBuf);
-			RtlZeroMemory(pBuf, IrpSl->Parameters.DeviceIoControl.InputBufferLength);
-			//RtlCopyMemory(pBuf, sayhello, strlen(sayhello));
-			RtlCopyMemory(pBuf, packet, packet_ready);
+			//DbgPrint("Received from the userLand: %s", ubuf);
+			RtlZeroMemory(ubuf, IrpSl->Parameters.DeviceIoControl.InputBufferLength);
+			//RtlCopyMemory(ubuf, sayhello, strlen(sayhello));
+			RtlCopyMemory(ubuf, packet, packet_ready);
 			/* finish IRP request */
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = packet_ready;
