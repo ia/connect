@@ -75,12 +75,12 @@ struct timeval {
 #define modname "pf"
 
 #ifndef RELEASE
-#	define printk (fmt, ...)  DbgPrint(fmt ##__VA_ARGS__)
-#	define prnt   (msg     )  printk("%s: %s: %d: %s\n"   ,           modname, __func__, __LINE__, msg )
-#	define DBG_IN             printk("%s: == >> %s: %d\n" ,           modname, __func__, __LINE__      )
-#	define DBG_OUT            printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      )
-#	define DBG_OUT_RET  (r)   printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      ); return r
-#	define DBG_OUT_RETP (r)   printk("%s: << == %s: %d: ret = %d\n",  modname, __func__, __LINE__, r   ); return r
+#	define printk  (fmt, ...)  DbgPrint(fmt ##__VA_ARGS__)
+#	define printm  (msg     )  printk("%s: %s: %d: %s\n"   ,           modname, __func__, __LINE__, msg )
+#	define DBG_IN              printk("%s: == >> %s: %d\n" ,           modname, __func__, __LINE__      )
+#	define DBG_OUT             printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      )
+#	define DBG_OUT_RET  (r)    printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      ); return r
+#	define DBG_OUT_RETP (r)    printk("%s: << == %s: %d: ret = %d\n",  modname, __func__, __LINE__, r   ); return r
 #else
 #	define printk(fmt, ...)
 #endif
@@ -118,34 +118,74 @@ http://msdn.microsoft.com/en-us/library/aa932351.aspx
  *
  */
 
-#ifndef lint
-typedef  LARGE_INTEGER lint;
-#endif
+/*** data type management ***/
 
-// typedef char          CHAR;
-// typedef char*        PCHAR;
-// typedef void          VOID;
-// typedef unsigned long ULONG;
-// typedef long          LONG;
-// typedef int           NDIS_STATUS;
-typedef  NTSTATUS      nt_ret;
+/* TODO: RESERVED from header */
 
-typedef  DEVICE_OBJECT dev_obj;
-// PDEVICE_OBJECT *dev_obj
+/* new custom types */
 
-typedef  IO_STACK_LOCATION io_stack;
-// PIO_STACK_LOCATION *io_stack
+/* redefining existing c types */
+typedef  unsigned char                  uchar;
 
-typedef  IRP               irp;
-// PIRP *irp
-
+/* redefining existing nt types */
+	/* simple */
+typedef  NTSTATUS                       nt_ret;
+typedef  NDIS_STATUS                    nd_ret;
+	/* complex */
+typedef  NDIS_PACKET                    nd_pack;
+typedef  NDIS_BUFFER                    nd_buf;
+typedef  NDIS_HANDLE                    nd_hndl;
+typedef  NDIS_EVENT                     nd_ev;
+typedef  NDIS_REQUEST                   nd_req;
+typedef  NDIS_STRING                    nd_str;
+typedef  NDIS_MEDIUM                    nd_type;
+typedef  NDIS_PROTOCOL_CHARACTERISTICS  nd_proto;
+typedef  UNICODE_STRING                 usting;
+typedef  LARGE_INTEGER                  lint;
+typedef  IO_STACK_LOCATION              io_stack;  /* PIO_STACK_LOCATION   *io_stack  */
+typedef  IRP                            irp;       /* PIRP                 *irp       */
+typedef  DEVICE_OBJECT                  dev_obj;   /* PDEVICE_OBJECT       *dev_obj   */
+typedef  DRIVER_OBJECT                  mod_obj;   /* PDRIVER_OBJECT       *mod_obj   */
 // nothing IN
 // nothing OUT
 // nothing OPTIONAL
 
-#define nt_memzero (     src, len)    RtlZeroMemory  (         src, len)
-#define nt_memcpy  (dst, src, len)    RtlCopyMemory  (dst,     src, len)
-#define nt_malloc  (          len)    ExAllocatePool (NonPagedPool, len)
+/* existing typedefs */
+// typedef char           CHAR;
+// typedef char*         PCHAR;
+// typedef wchar_t       WCHAR;
+// typedef void           VOID;
+// typedef void*         PVOID;
+// typedef unsigned long  ULONG;
+// typedef unsigned int   ULONG;
+// typedef long           LONG;
+// typedef int            NDIS_STATUS;
+// typedef long           NTSTATUS;     /* values: http://msdn.microsoft.com/en-us/library/cc704588.aspx */
+// typedef false          FALSE;
+// typedef true           TRUE;
+
+/* values */
+#define NT_OK         STATUS_SUCCESS
+#define NT_ERR        STATUS_UNSUCCESSFUL
+#define ND_OK         NDIS_STATUS_SUCCESS
+#define IS_NT_OK(r)   NT_SUCCESS(r)
+
+/* functions */
+	/* basic */
+#define nt_memzero       (     src, len)    RtlZeroMemory        (         src, len            )
+#define nt_memcpy        (dst, src, len)    RtlCopyMemory        (dst,     src, len            )
+#define nt_malloc        (          len)    ExAllocatePool       (NonPagedPool, len            )
+#define nt_free          (     src     )    ExFreePool           (         src                 )
+#define nt_irp_complete  (          ir )    IoCompleteRequest    (ir,           IO_NO_INCREMENT)
+#define nt_init_ustring  (dst, src     )    RtlInitUnicodeString (dst,     src                 )
+#define nt_creat_link    (dst, src     )    IoCreateSymbolicLink (dst,     src                 )
+#define nt_unlink_link   (     str     )    IoDeleteSymbolicLink (         str                 )
+#define nt_unlink_dev    (     dobj    )    IoDeleteDevice       (         dobj                )
+	/* complex */
+#define nt_creat (mod, extsize, name, type, props, excl, dobj) \
+		IoCreateDevice (mod, extsize, name, type, props, excl, dobj)
+
+/*** ***/
 
 /*
  * -- time management links:
@@ -357,7 +397,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT theDriverObject, IN PUNICODE_STRING theRe
 	}
 	
 	DbgPrint("ndSniff: preparing buffer for packet");
-	packet = ExAllocatePool(NonPagedPool, packet_size);
+	packet = (uchar *) ExAllocatePool(NonPagedPool, packet_size);
 	if (!packet) {
 		DbgPrint("ndSniff: ERROR: ENOMEM");
 	}
