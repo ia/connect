@@ -15,13 +15,8 @@
 /* includes */
 #include <stdio.h>
 #include <string.h>
-
-
-#include <stdio.h>
 #include <stdlib.h>
-//#include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <malloc.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -41,9 +36,9 @@
 
 /* TODO: rename two */
 #define  RESERVED(_p)           ((PPACKET_RESERVED)((_p)->ProtocolReserved))
-#define  RSRVD_PCKT_CTX(_p)     ((stuct packet_ctx *)((_p)->ProtocolReserved))
+#define  RSRVD_PCKT_CTX(_p)     ((struct packet_ctx *)((_p)->ProtocolReserved))
 #define  TRANSMIT_PACKETS       128
-#define  MTU                    MTU
+#define  MTU                    1514
 
 /* ioctl related defines */
 #define  SIOCTL_TYPE            40000
@@ -59,68 +54,69 @@
 #define  NT_OK                 STATUS_SUCCESS
 #define  NT_ERR                STATUS_UNSUCCESSFUL
 #define  ND_OK                 NDIS_STATUS_SUCCESS
-#define  IS_ND_OK   (r)        (r == NDIS_STATUS_SUCCESS)
-#define  IS_NT_OK   (r)        NT_SUCCESS(r)
-#define  IS_NT_ERR  (r)        NT_ERROR  (r)  /* http://msdn.microsoft.com/en-us/library/windows/hardware/ff565436%28v=vs.85%29.aspx */
-#define  IRP_ASBUF  (i)        (i->AssociatedIrp.SystemBuffer)
-#define  IRP_IBLEN  (s)        (s->Parameters.DeviceIoControl.InputBufferLength)
-#define  IRP_IOCTL  (s)        (s->Parameters.DeviceIoControl.IoControlCode)
-#define  IRP_DONE   (rp, info) \
+#define  IS_ND_OK(   r)        (r == NDIS_STATUS_SUCCESS)
+#define  IS_NT_OK(   r)        NT_SUCCESS(r)
+#define  IS_NT_ERR(  r)        NT_ERROR  (r)  /* http://msdn.microsoft.com/en-us/library/windows/hardware/ff565436%28v=vs.85%29.aspx */
+#define  IRP_ASBUF(  i)        (i->AssociatedIrp.SystemBuffer)
+#define  IRP_IBLEN(  s)        (s->Parameters.DeviceIoControl.InputBufferLength)
+#define  IRP_IOCTL(  s)        (s->Parameters.DeviceIoControl.IoControlCode)
+#define  IRP_DONE(  rp, info) \
 		rp->IoStatus.Status = STATUS_SUCCESS; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
 /* functions */
 	/* basic */
-#define nt_malloc        (          len)    ExAllocatePool               (NonPagedPool, len            )
-#define nt_free          (     src     )    ExFreePool                   (         src                 )
-#define nt_memzero       (     _src, _len)    RtlZeroMemory                (         _src, _len            )
-#define nt_memcpy        (dst, src, len)    RtlCopyMemory                (dst,     src, len            )
-#define nt_init_ustring  (dst, src     )    RtlInitUnicodeString         (dst,     src                 )
-#define nt_creat_link    (dst, src     )    IoCreateSymbolicLink         (dst,     src                 )
-#define nt_irp_complete  (     ir      )    IoCompleteRequest            (         ir, IO_NO_INCREMENT )
-#define nt_irp_get_stack (     ir      )    IoGetCurrentIrpStackLocation (         ir                  )
-#define nt_unlink_link   (     str     )    IoDeleteSymbolicLink         (         str                 )
-#define nt_unlink_dev    (     dev     )    IoDeleteDevice               (         dev                 )
+#define nt_malloc(             len     )    ExAllocatePool(               NonPagedPool, len            )
+#define nt_free(               src     )    ExFreePool(                            src                 )
+#define nt_memzero(            src, len)    RtlZeroMemory(                         src, len            )
+#define nt_memcpy(        dst, src, len)    RtlCopyMemory(                dst,     src, len            )
+#define nt_init_ustring(  dst, src     )    RtlInitUnicodeString(         dst,     src                 )
+#define nt_creat_link(    dst, src     )    IoCreateSymbolicLink(         dst,     src                 )
+#define nt_irp_complete(       ir      )    IoCompleteRequest(                     ir, IO_NO_INCREMENT )
+#define nt_irp_get_stack(      ir      )    IoGetCurrentIrpStackLocation(          ir                  )
+#define nt_unlink_link(        str     )    IoDeleteSymbolicLink(                  str                 )
+#define nt_unlink_dev(         dev     )    IoDeleteDevice(                        dev                 )
 	/* complex */
-#define nt_creat (mod, name, dev) \
-	IoCreateDevice (mod, sizeof(DEVICE_EXTENSION), name, FILE_DEVICE_ROOTKIT, FILE_DEVICE_SECURE_OPEN, false, dev)
+#define nt_creat(mod, name, dev) \
+	IoCreateDevice(mod, 0, name, FILE_DEVICE_ROOTKIT, FILE_DEVICE_SECURE_OPEN, false, dev)
 
 /* routine */
 #define  PROTONAME  "pf"
+#define LPROTONAME  "pf"
 #define  MODNAME    "pf"
+#define LMODNAME    "pf"
 
-//#ifndef RELEASE
-//#	define printk  (fmt, ...)        DbgPrint(fmt ##__VA_ARGS__)
-//#	define printk                    DbgPrint
-#	define printm  (msg     )        DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, msg      )
-#	define printmd (msg, d  )        DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, msg, d, d)
+#ifndef RELEASE
+#	define printk(  fmt, ...)        DbgPrint(fmt ##__VA_ARGS__)
+#	define printm(  msg     )        DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, msg      )
+#	define printmd( msg, d  )        DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, msg, d, d)
 #	define DBG_IN                    DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
 #	define DBG_OUT                   DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
-#	define DBG_OUT_RET     (r)       DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return r
-#	define DBG_OUT_RET_P   (r)       DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return r
-#	define DBG_OUT_RET_PV  (r)       DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return
-#	define DBG_OUT_RET_PM  (m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
-#	define DBG_OUT_RET_PMV (m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
-/*
+#	define DBG_OUT_RV                DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return
+#	define DBG_OUT_RET(     r)       DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return r
+#	define DBG_OUT_RET_P(   r)       DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return r
+#	define DBG_OUT_RET_PV(  r)       DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return
+#	define DBG_OUT_RET_PM(  m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
+#	define DBG_OUT_RET_PMV( m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
 #else
-#	define printk   (fmt, ...)
-#	define printm   (msg     )
-#	define printmd  (msg, d  )
+#	define printk(   fmt, ... )
+#	define printm(   msg      )
+#	define printmd(  msg, d   )
 #	define DBG_IN
 #	define DBG_OUT
-#	define DBG_OUT_RET   (r)       return r
-#	define DBG_OUT_RET_P (r)       return r
-#	define DBG_OUT_RET_M (m, r)    return r
-#	define DBG_OUT_RET_V (m, r)    return
-*/
-//#endif
+#   define DBG_OUT_RV              return
+#	define DBG_OUT_RET(   r   )    return r
+#	define DBG_OUT_RET_P( r   )    return r
+#	define DBG_OUT_RET_M( m, r)    return r
+#	define DBG_OUT_RET_V( m, r)    return
+#endif
 
-#define  RET_ON_ERR_MV_ND (m, r)     if (!(IS_ND_OK(r)))    { DBG_OUT_RET_PMV(m, r);           }
-#define  RET_ON_ERR_M_ND  (m, r)     if (!(IS_ND_OK(r)))    { DBG_OUT_RET_PM(m, r);            }
-#define  RET_ON_ERR_V_ND  (r)        if (!(IS_ND_OK(r)))    { DBG_OUT_RET_PV(r);               }
-#define  RET_ON_ERR_V     (r)        if (!(NT_SUCCESS(r)))  { DBG_OUT_RET_PV(r);               }
-#define  RET_ON_ERR       (r)        if (!(NT_SUCCESS(r)))  { DBG_OUT_RET_P(r);                }
-#define  RET_ON_VAL       (r, v)     if (r != v)            { DBG_OUT_RET_P(r);                }
-#define  RET_ON_VAL_MR    (v, m, r)  if (v)                 { DBG_OUT_RET_PM(m, r);            }
-#define  RET_ON_NULL      (ptr)      if (!ptr)              { printm("ENOMEM"); return NT_ERR; }
+#define  RET_ON_ERR_MV_ND( m, r   )     if (!(IS_ND_OK(r)))   { DBG_OUT_RET_PMV(m, r);           }
+#define  RET_ON_ERR_M_ND(  m, r   )     if (!(IS_ND_OK(r)))   { DBG_OUT_RET_PM(m, r);            }
+#define  RET_ON_ERR_V_ND(  r      )     if (!(IS_ND_OK(r)))   { DBG_OUT_RET_PV(r);               }
+#define  RET_ON_ERR_V(     r      )     if (!(NT_SUCCESS(r))) { DBG_OUT_RET_PV(r);               }
+#define  RET_ON_ERR(       r      )     if (!(NT_SUCCESS(r))) { DBG_OUT_RET_P(r);                }
+#define  RET_ON_VAL(       r, v   )     if (r != v)           { DBG_OUT_RET_P(r);                }
+#define  RET_ON_VAL_MR(    v, m, r)     if (v)                { DBG_OUT_RET_PM(m, r);            }
+#define  RET_ON_NULL(      ptr    )     if (!ptr)             { printm("ENOMEM"); return NT_ERR; }
 
 
 /*** *** *** data types *** *** ***/
@@ -129,14 +125,23 @@
 /*** custom types ***/
 
 
-/* redefining existing c types */
+/* defining standart C types */
 
-typedef signed char       int8_t;
-typedef signed short      int16_t;
-typedef signed int        int32_t;
-typedef unsigned char     uint8_t;
-typedef unsigned short    uint16_t;
-typedef unsigned int      uint32_t;
+
+#ifndef true
+#define true  TRUE
+#endif
+#ifndef false
+#define false FALSE
+#endif
+
+
+typedef signed char     int8_t;
+typedef signed short    int16_t;
+typedef signed int      int32_t;
+typedef unsigned char   uint8_t;
+typedef unsigned short  uint16_t;
+typedef unsigned int    uint32_t;
 
 typedef unsigned char   u_char;
 typedef unsigned short  u_short;
@@ -147,28 +152,17 @@ typedef unsigned char   uchar;
 typedef unsigned short  ushort;
 typedef unsigned int    uint;
 typedef unsigned long   ulong;
-	 
-#ifndef true
-#define true  TRUE;
-#endif
-#ifndef false
-#define false FALSE;
-#endif
-#ifndef uint
-typedef  unsigned int                   uint;
-#endif
-#ifndef uchar
-typedef  unsigned char                  uchar;
-#endif
 
 
 /* redefining existing nt types */
+
+
 	/* simple */
 typedef  NTSTATUS                       nt_ret;
 typedef  NDIS_STATUS                    nd_ret;
 	/* complex */
 typedef  NET_PNP_EVENT                  nd_pnp_ev;
-typedef  UNICODE_STRING                 usting;
+typedef  UNICODE_STRING                 ustring;
 typedef  LARGE_INTEGER                  lrgint;
 typedef  DRIVER_OBJECT                  mod_obj;   /* PDRIVER_OBJECT       *mod_obj   */
 typedef  DEVICE_OBJECT                  dev_obj;   /* PDEVICE_OBJECT       *dev_obj   */
@@ -309,7 +303,7 @@ nt_ret   dev_read     (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_write    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_ioctl    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_close    (dev_obj *dobj, irp *i)           ;
-void     init_ndis    (mod_obj *mobj)                   ;
+nt_ret   init_ndis    (mod_obj *mobj)                   ;
 nt_ret   init_device  (mod_obj *mobj)                   ;
 nt_ret   init_ctx     (void)                            ;
 void     exit_ndis    (mod_obj *mobj)                   ;
@@ -368,7 +362,8 @@ void ndis_packet_dump(const uchar *packet, int len)
 	memcpy(g_packet, packet, len);
 	g_packet_ready = len;
 	
-	DBG_OUT_RET(void);
+	DBG_OUT;
+	return;
 }
 
 
@@ -378,27 +373,27 @@ void ndis_packet_dump(const uchar *packet, int len)
 void ndis_status(nd_hndl protobind_ctx, nd_ret s, void *sbuf, uint sbuf_len)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_status_cmplt(nd_hndl protobind_ctx)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
-void ndis_iface_open(ndis_hndl protobind_ctx, nd_ret s, nd_ret err)
+void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 {
-	DBG_IN;
-	
 	nd_ret ret;
 	nd_ret ret_req;
 	nd_req ndis_req;
 	ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL; //NDIS_PACKET_TYPE_PROMISCUOUS;
 	
-	RET_ON_ERRV(s);
+	DBG_IN;
+	
+	RET_ON_ERR_V(s);
 	
 	ndis_req.RequestType                                   =  NdisRequestSetInformation     ;
 	ndis_req.DATA.SET_INFORMATION.Oid                      =  OID_GEN_CURRENT_PACKET_FILTER ;
@@ -408,26 +403,26 @@ void ndis_iface_open(ndis_hndl protobind_ctx, nd_ret s, nd_ret err)
 	NdisRequest(&ret_req, g_iface_hndl, &ndis_req);
 	
 	NdisAllocatePacketPool(&ret, &g_packet_pool, TRANSMIT_PACKETS, sizeof(struct packet_ctx));
-	RET_ON_ERRMV_ND("NdisAllocatePacketPool: error", ret);
+	RET_ON_ERR_MV_ND("NdisAllocatePacketPool: error", ret);
 	
 	NdisAllocateBufferPool(&ret, &g_buffer_pool, TRANSMIT_PACKETS);
-	RET_ON_ERRMV_ND("NdisAllocateBufferPool: error", ret);
+	RET_ON_ERR_MV_ND("NdisAllocateBufferPool: error", ret);
 	
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_iface_bind(nd_ret *s, nd_hndl bind_ctx, nd_str *devname, void *ss1, void *ss2)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_iface_unbind(nd_ret *s, nd_hndl bind_ctx, nd_hndl *unbind_ctx)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
@@ -435,36 +430,36 @@ void ndis_iface_close(nd_hndl protobind_ctx, nd_ret s)
 {
 	DBG_IN;
 	NdisSetEvent(&g_closew_event);
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_reset(nd_hndl protobind_ctx, nd_ret s)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr_buf_len, void *labuf, uint labuf_len, uint psize)
 {
-	DBG_IN;
+	void               *mbuf;
+	struct packet_ctx  *pctx;
+	nd_pack            *npacket;
+	nd_buf             *nbuf;
+	nd_ret              ret;
+	ulong               blen;
+	ulong               tx_size = 0;
+	uint                tx_bytes = 0;
 	
-	void        *mbuf;
-	packet_ctx  *pctx;
-	nd_pack     *npacket;
-	nd_buf      *nbuf;
-	nd_ret       ret;
-	ulong        blen;
-	ulong        tx_size = 0;
-	uint         tx_bytes = 0;
+	DBG_IN;
 	
 	tx_size = psize;
 	
@@ -514,21 +509,19 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 void ndis_recv_pckt(nd_hndl protobind_ctx, nd_pack *npacket)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_recv_cmplt(nd_hndl protobind_ctx)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint tx)
 {
-	DBG_IN;
-	
 	nd_buf *nbuf;
 	
 	void *tbuf;
@@ -536,10 +529,12 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	void *hdr_tbuf;
 	ulong hdr_tbuf_len;
 	
+	DBG_IN;
+	
 	tbuf         = RSRVD_PCKT_CTX(tx_packet)->pbuf         ;
 	tbuf_len     = tx                                      ;
 	hdr_tbuf     = RSRVD_PCKT_CTX(tx_packet)->phdr_buf     ;
-	hdr_tbuf_len = RSRVD_PCKT_CTX(tx_packet)->phrd_buf_len ;
+	hdr_tbuf_len = RSRVD_PCKT_CTX(tx_packet)->phdr_buf_len ;
 	
 	/*
 	aHeaderBufferP = Ethernet Header
@@ -569,28 +564,28 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	NdisFreePacket(tx_packet);
 	
 	g_packet_ready = 0;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_request(nd_hndl protobind_ctx, nd_req *nreq, nd_ret s)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
-void ndis_pnp(nd_hndl protobind_ctx, nd_npnp_ev *pnpev)
+void ndis_pnp(nd_hndl protobind_ctx, nd_pnp_ev *pnpev)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
 void ndis_unload(void)
 {
 	DBG_IN;
-	DBG_OUT_RET();
+	DBG_OUT_RV;
 }
 
 
@@ -620,13 +615,13 @@ nt_ret dev_write(dev_obj *dobj, irp *i)
 
 nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 {
-	DBG_IN;
-	
-	io_stack sl;
+	io_stack *sl;
 	ulong ctl_code;
 	
 	/* init associated system buffer */
-	void *ubuf = IRP_ASBUF(i)
+	void *ubuf = IRP_ASBUF(i);
+	
+	DBG_IN;
 	
 	/* init current stack location for irp */
 	sl = nt_irp_get_stack(i);
@@ -664,18 +659,18 @@ nt_ret dev_close(dev_obj *dobj, irp *i)
 /*** *** *** init routine *** *** ***/
 
 
-void init_ndis(mod_obj *mobj)
+nt_ret init_ndis(mod_obj *mobj)
 {
-	DBG_IN;
-	
 	nd_ret ret, err;
 	nd_proto proto;
-	usting ifname;
-	
+	ustring ifname;
 	uint mindex = 0;
+	
 	//This string must match that specified in the registery (under Services) when the protocol was installed
 	nd_str pname = NDIS_STRING_CONST(PROTONAME);
 	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
+	
+	DBG_IN;
 	
 	printm("init ndis event");
 	NdisInitializeEvent(&g_closew_event);
@@ -719,7 +714,7 @@ void init_ndis(mod_obj *mobj)
 	 */
 	
 	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, &g_iface_handle, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
+	NdisOpenAdapter(&ret, &err, &g_iface_hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
 	if (!(IS_ND_OK(ret))) {
 		if (!(IS_NT_OK(ret))) {
 			printmd("NdisOpenAdapter: error", ret);
@@ -748,10 +743,11 @@ void init_ndis(mod_obj *mobj)
 
 nt_ret init_device(mod_obj *mobj)
 {
-	DBG_IN;
 	nt_ret   ret;
 	ustring  devname_path;
 	ustring  devname_link;
+	
+	DBG_IN;
 	
 	// We set up the name and symbolic link in Unicode
 	printm("init strings for devices");
@@ -781,11 +777,15 @@ nt_ret init_device(mod_obj *mobj)
 
 nt_ret init_ctx(void)
 {
+	DBG_IN;
+/*
 	g_modctx.device_path = g_devpath;
 	g_modctx.device_link = g_devlink;
 	g_modctx.packet = NULL;
 	g_modctx.packet_size = 64 * 1024;
 	g_modctx.packet_ready = 0;
+*/
+	DBG_OUT_RET(NT_OK);
 }
 
 
@@ -794,8 +794,9 @@ nt_ret init_ctx(void)
 
 void exit_ndis(mod_obj *mobj)
 {
-	DBG_IN;
 	nd_ret ret;
+	
+	DBG_IN;
 	
 	printm("resetting ndis event");
 	NdisResetEvent(&g_closew_event);
@@ -820,8 +821,9 @@ void exit_ndis(mod_obj *mobj)
 
 void exit_device(mod_obj *mobj)
 {
-	DBG_IN;
 	ustring  devname_path;
+	
+	DBG_IN;
 	
 	printm("init string for device");
 	nt_init_ustring(&devname_path, g_devpath);
@@ -851,8 +853,9 @@ void exit_module(mod_obj *mobj)
 
 nt_ret init_module(mod_obj *mobj)
 {
-	DBG_IN;
 	nt_ret ret;
+	
+	DBG_IN;
 	
 	printm("init unload module callback");
 	mobj->DriverUnload = exit_module;
