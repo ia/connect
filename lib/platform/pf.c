@@ -280,7 +280,7 @@ struct module_ctx {
 
 
 int      gettimeofday       (struct timeval *dst);
-void     ndis_packet_dump   (const uchar *packet, int len);
+void     ndis_packet_recv   (const uchar *packet, int len);
 
 void     ndis_status        (nd_hndl protobind_ctx  , nd_ret      s        , void    *sbuf, uint sbuf_len);
 void     ndis_status_cmplt  (nd_hndl protobind_ctx);
@@ -351,7 +351,7 @@ int gettimeofday(struct timeval *dst)
 }
 
 
-void ndis_packet_dump(const uchar *packet, int len)
+void ndis_packet_recv(const uchar *packet, int len)
 {
 	struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
 	DBG_IN;
@@ -362,8 +362,7 @@ void ndis_packet_dump(const uchar *packet, int len)
 	memcpy(g_packet, packet, len);
 	g_packet_ready = len;
 	
-	DBG_OUT;
-	return;
+	DBG_OUT_RV;
 }
 
 
@@ -548,7 +547,7 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 			memcpy(pbuf, hdr_tbuf, hdr_tbuf_len);
 			memcpy(pbuf + hdr_tbuf_len, tbuf, tbuf_len);
 			/* woei complete packet, parse it */
-			ndis_packet_dump(pbuf, (hdr_tbuf_len + tbuf_len));
+			ndis_packet_recv(pbuf, (hdr_tbuf_len + tbuf_len));
 			nt_free(pbuf);
 		}
 		nt_free(tbuf);
