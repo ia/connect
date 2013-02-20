@@ -89,7 +89,7 @@
 #ifndef RELEASE
 #	define printk(  fmt, ...)        DbgPrint(fmt ##__VA_ARGS__)
 #	define printm(  msg     )        DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, msg      )
-#	define printl(          )        DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__           )
+#	define printl                    DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__           )
 #	define printmd( msg, d  )        DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, msg, d, d)
 #	define DBG_IN                    DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
 #	define DBG_OUT                   DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
@@ -99,7 +99,7 @@
 #	define DBG_OUT_RET_PV(  r)       DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return
 #	define DBG_OUT_RET_PM(  m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
 #	define DBG_OUT_RET_PMV( m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
-#	define printdbg(fmt, ...)        printl(); DbgPrint(fmt ##__VA_ARGS__)
+#	define printdbg(fmt, ...)        printl; DbgPrint(fmt ##__VA_ARGS__)
 #else
 #	define printk(   fmt, ... )
 #	define printm(   msg      )
@@ -348,7 +348,7 @@ size_t             g_packet_size  = 64 * 1024;
 int                g_packet_ready = 0;
 nd_ev              g_closew_event;
 int                g_iface_ready  = 0;
-ustring           *g_iface_name;
+ustring            g_iface_name;
 
 struct user_ctx    g_usrctx;
 struct module_ctx  g_modctx;
@@ -780,13 +780,17 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 				IRP_DONE(i, 0, NT_OK);
 			} else {
 				printm("IOCTL >>");
-				while (!g_packet_ready) {
-					continue;
+				if (g_iface_ready) {
+					while (!g_packet_ready) {
+						continue;
+					}
+					nt_memzero(ubuf, IRP_IBLEN(sl));
+					nt_memcpy(ubuf, g_packet, g_packet_ready);
+					/* finish IRP request */
+					IRP_DONE(i, g_packet_ready, NT_OK);
+				} else {
+					IRP_DONE(i, 0, NT_OK);
 				}
-				nt_memzero(ubuf, IRP_IBLEN(sl));
-				nt_memcpy(ubuf, g_packet, g_packet_ready);
-				/* finish IRP request */
-				IRP_DONE(i, g_packet_ready, NT_OK);;
 				printm("IOCTL <<");
 			}
 			break;
@@ -824,14 +828,91 @@ void init_sending(void)
 
 void init_ndis_device(wchar_t *iface_name, int iface_len)
 {
-	DBG_IN;
-	nt_init_ustring(g_iface_name, &g_dev_prefix);
-	//RtlAppendUnicodeStringToString(g_iface_name, &g_dev_prefix);
-	RtlAppendUnicodeToString(g_iface_name, iface_name);
-	DbgPrint("DEVICE == %s\n", g_iface_name->Buffer);
 	//g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}" // 38
+	
+	nd_ret ret, err;
+	ustring ifname;
+	uint mindex = 0;
+	uchar *tmp = NULL;
+	
+	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
+	
+	DBG_IN;
+	
+	printm("init global adapter name");
+	
+	DbgPrint("DEVICE(input  s) == %s\n", iface_name);
+	//DbgPrint("DEVICE(input ws) == %ws\n", iface_name);
+	/*
+	g_iface_name.Length = 0;
+	g_iface_name.MaximumLength = iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL);
+	g_iface_name.Buffer = nt_malloc(g_iface_name.MaximumLength);
+
+	if (!(g_iface_name.Buffer)) {
+		printdbg("MEMORY: NULL\n");
+	}
+	*/
+	//nt_init_ustring(g_iface_name, &g_dev_prefix);
+	/*
+	RtlAppendUnicodeStringToString(&g_iface_name, &g_dev_prefix);
+	RtlAppendUnicodeToString(&g_iface_name, iface_name + g_dev_prefix.Length / sizeof(WCHAR));
+	DbgPrint("DEVICE(global  s) == %s\n", g_iface_name.Buffer);
+	*/
+	tmp = nt_malloc(iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL));
+	if (!(tmp)) {
+		printdbg("MEMORY 2: NULL\n");
+		return;
+	}
+	nt_memzero(tmp, (iface_len + 12 + sizeof(UNICODE_NULL)));
+	memcpy(tmp, "\\Device\\", 10);
+	DbgPrint("DEVICE(tmp1 s) == %s\n", tmp);
+	strcat(tmp, iface_name);
+	DbgPrint("DEVICE(tmp2 s) == %s\n", tmp);
+	strcat(tmp, '\0');
+	DbgPrint("DEVICE(tmp3 s) == %s\n", tmp);
+
+	printm("init global adapter name");
+	nt_init_ustring(&g_iface_name, iface_name);
+	
+	DbgPrint("DEVICE(global  s) == %s\n", g_iface_name.Buffer);
+	DbgPrint("DEVICE(global ws) == %ws\n", g_iface_name.Buffer);
+	
+	/*
 	g_iface_ready = 1;
-	DBG_OUT_RV;
+	*/
+	
+	/*
+	printm("init local adapter name");
+	nt_init_ustring(&ifname, iface_name);
+	*/
+	
+	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
+	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
+	//nt_init_ustring(&ifname, L"\\Device\\{449F621A-04BC-4896-BBCB-7A93708EA9B8}");
+	/* taken from:
+	 * \HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\{...}
+	 */
+	
+	/*
+	printm("opening adapter");
+	NdisOpenAdapter(&ret, &err, &g_iface_hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
+	if (!(IS_ND_OK(ret))) {
+		if (!(IS_NT_OK(ret))) {
+			printmd("NdisOpenAdapter: error", ret);
+			if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
+				printm("NdisOpenAdapter: adapter not found");
+			}
+			
+			NdisDeregisterProtocol(&ret, g_proto_hndl);
+			if (!(IS_NT_OK(ret))) {
+				printm("NdisDeregisterProtocol: error");
+			}
+			return NT_ERR;
+		}
+	}
+	
+	ndis_iface_open(&g_usrctx, ret, ND_OK);
+	*/
 }
 
 
@@ -881,20 +962,25 @@ nt_ret init_ndis(mod_obj *mobj)
 	NdisRegisterProtocol(&ret, &g_proto_hndl, &proto, sizeof(nd_proto));
 	RET_ON_ERR_M_ND("NdisRegisterProtocol: error", ret);
 	
+	/*
 	printm("waiting iface name");
 	while (!g_iface_ready) {
 		continue;
 	}
+	*/
 	
+	/*
 	printm("init adapter name");
 	nt_init_ustring(&ifname, g_iface_name->Buffer);
 	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
 	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
 	//nt_init_ustring(&ifname, L"\\Device\\{449F621A-04BC-4896-BBCB-7A93708EA9B8}");
+	*/
 	/* taken from:
 	 * \HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\{...}
 	 */
 	
+	/*
 	printm("opening adapter");
 	NdisOpenAdapter(&ret, &err, &g_iface_hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
 	if (!(IS_ND_OK(ret))) {
@@ -913,7 +999,8 @@ nt_ret init_ndis(mod_obj *mobj)
 	}
 	
 	ndis_iface_open(&g_usrctx, ret, ND_OK);
-	
+	*/
+
 	printm("preparing buffer for packet");
 	g_packet = (uchar *) nt_malloc(g_packet_size);
 	RET_ON_NULL(g_packet);
@@ -1005,15 +1092,20 @@ void exit_ndis(mod_obj *mobj)
 
 void exit_device(mod_obj *mobj)
 {
-	ustring  devname_path;
+	ustring  devname_link;
 	
 	DBG_IN;
 	
 	printm("init string for device");
-	nt_init_ustring(&devname_path, g_devpath);
+	nt_init_ustring(&devname_link, g_devlink);
 	
-	printm("removing device");
-	nt_unlink_link(&devname_path);
+	printm("removing device link");
+	nt_unlink_link(&devname_link);
+	/*
+	printm("removing device path");
+	nt_unlink_dev(g_device);
+	*/
+	
 	printm("removing device object");
 	nt_unlink_dev(mobj->DeviceObject);
 	
