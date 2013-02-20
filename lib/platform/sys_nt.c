@@ -739,14 +739,22 @@ ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
 #define SIOCTL_TYPE 40000
 #define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 
+struct user_irp {
+	int irp_type;
+	wchar_t irp_data[38];
+};
+
 int __cdecl main(int argc, char* argv[])
 {
 	HANDLE hDevice;
 	DWORD NombreByte;
 	int i;
 	unsigned char out[64*1024];
+	struct user_irp uirp;
 	char *sayhello = "Hi! From UserLand";
 	
+	uirp.irp_type = 1;
+	memcpy(uirp.irp_data, "{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", 38);
 	// Fills the array 'out' by zeros
 	ZeroMemory(out, sizeof(out));
 	
@@ -755,6 +763,7 @@ int __cdecl main(int argc, char* argv[])
 	printf("Handle pointer: %p\n", hDevice);
 	
 	// We send a CTL command to read our message in kernel
+	/*
 	DeviceIoControl(hDevice, IOCTL_HELLO, sayhello, strlen(sayhello), out, sizeof(out), &NombreByte, NULL);
 	
 	printf("[len=%d]", NombreByte);
@@ -762,7 +771,9 @@ int __cdecl main(int argc, char* argv[])
 		printf(" %02X", out[i]);
 	}
 	printf("\n");
-	
+	*/
+	DeviceIoControl(hDevice, IOCTL_HELLO, &uirp, sizeof(struct user_irp), out, sizeof(out), &NombreByte, NULL);
+
 	CloseHandle(hDevice); // Close the handle: We should observe the function CloseFunction is called
 	return 0;
 }
