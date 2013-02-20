@@ -36,3 +36,6 @@ List of network interfaces:
  - regedit.exe
  - HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces
 
+http://drp.su/ru/driver_dev/03_01-8.htm
+http://mcdermottcybersecurity.com/articles/64-bit-device-driver-development
+
