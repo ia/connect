@@ -89,6 +89,7 @@
 #ifndef RELEASE
 #	define printk(  fmt, ...)        DbgPrint(fmt ##__VA_ARGS__)
 #	define printm(  msg     )        DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, msg      )
+#	define printl(          )        DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__           )
 #	define printmd( msg, d  )        DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, msg, d, d)
 #	define DBG_IN                    DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
 #	define DBG_OUT                   DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
@@ -98,10 +99,12 @@
 #	define DBG_OUT_RET_PV(  r)       DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return
 #	define DBG_OUT_RET_PM(  m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
 #	define DBG_OUT_RET_PMV( m, r)    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
+#	define printdbg(fmt, ...)        printl(); DbgPrint(fmt ##__VA_ARGS__)
 #else
 #	define printk(   fmt, ... )
 #	define printm(   msg      )
 #	define printmd(  msg, d   )
+#	define printdbg( msg, d   )
 #	define DBG_IN
 #	define DBG_OUT
 #	define DBG_OUT_RV              return
@@ -121,6 +124,9 @@
 #define  RET_ON_VAL_MRV(   v, m, r)     if (v)                { DBG_OUT_RET_PMV(m, r);           }
 #define  RET_ON_NULL(      ptr    )     if (!ptr)             { printm("ENOMEM"); return NT_ERR; }
 
+
+#define IRP_IFACE 1
+#define IFACE_LEN 38
 
 /*** *** *** data types *** *** ***/
 
@@ -281,6 +287,11 @@ struct module_ctx {
 };
 
 
+struct user_irp {
+	int irp_type;
+	wchar_t irp_data[38];
+};
+
 /*** *** *** declarations of functions *** *** ***/
 
 
@@ -310,6 +321,7 @@ nt_ret   dev_read     (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_write    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_ioctl    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_close    (dev_obj *dobj, irp *i)           ;
+void     init_ndis_device(wchar_t *iface, int iface_len);
 nt_ret   init_ndis    (mod_obj *mobj)                   ;
 nt_ret   init_device  (mod_obj *mobj)                   ;
 nt_ret   init_ctx     (void)                            ;
@@ -322,6 +334,7 @@ nt_ret   init_module  (mod_obj *mobj)                   ;
 
 /*** *** *** global variables *** *** ***/
 
+nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device\\");
 
 dev_obj           *g_device;
 const wchar_t      g_devpath[] = L"\\Device\\myDevice1";     // Define the device
@@ -335,6 +348,7 @@ size_t             g_packet_size  = 64 * 1024;
 int                g_packet_ready = 0;
 nd_ev              g_closew_event;
 int                g_iface_ready  = 0;
+ustring           *g_iface_name;
 
 struct user_ctx    g_usrctx;
 struct module_ctx  g_modctx;
@@ -453,7 +467,7 @@ void ndis_packet_send(const uchar *packet, int len)
 	NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, pbuf, len);
 	if (!(IS_ND_OK(ret))) {
 		KeReleaseSpinLock(&g_splock, g_irq);
-		DBG_OUT_PMV("NdisAllocateBuffer", ret);
+		DBG_OUT_RET_PMV("NdisAllocateBuffer", ret);
 	}
 	
 	RSRVD_PCKT_CTX(npacket)->rp = NULL; /* so our OnSendDone() knows this is local */
@@ -761,15 +775,20 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 	
 	switch (ctl_code) {
 		case IOCTL_HELLO:
-			printm("IOCTL >>");
-			while (!g_packet_ready) {
-				continue;
+			if ((((struct user_irp *) ubuf)->irp_type) == IRP_IFACE) {
+				init_ndis_device((((struct user_irp *) ubuf)->irp_data), 38);
+				IRP_DONE(i, 0, NT_OK);
+			} else {
+				printm("IOCTL >>");
+				while (!g_packet_ready) {
+					continue;
+				}
+				nt_memzero(ubuf, IRP_IBLEN(sl));
+				nt_memcpy(ubuf, g_packet, g_packet_ready);
+				/* finish IRP request */
+				IRP_DONE(i, g_packet_ready, NT_OK);;
+				printm("IOCTL <<");
 			}
-			nt_memzero(ubuf, IRP_IBLEN(sl));
-			nt_memcpy(ubuf, g_packet, g_packet_ready);
-			/* finish IRP request */
-			IRP_DONE(i, g_packet_ready, NT_OK);;
-			printm("IOCTL <<");
 			break;
 		default:
 			break;
@@ -803,11 +822,16 @@ void init_sending(void)
 }
 
 
-nt_ret init_ndis_device(uchar *iface_name, IFACE_LEN)
+void init_ndis_device(wchar_t *iface_name, int iface_len)
 {
-	
-	g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}"
+	DBG_IN;
+	nt_init_ustring(g_iface_name, &g_dev_prefix);
+	//RtlAppendUnicodeStringToString(g_iface_name, &g_dev_prefix);
+	RtlAppendUnicodeToString(g_iface_name, iface_name);
+	DbgPrint("DEVICE == %s\n", g_iface_name->Buffer);
+	//g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}" // 38
 	g_iface_ready = 1;
+	DBG_OUT_RV;
 }
 
 
@@ -863,7 +887,8 @@ nt_ret init_ndis(mod_obj *mobj)
 	}
 	
 	printm("init adapter name");
-	nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
+	nt_init_ustring(&ifname, g_iface_name->Buffer);
+	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
 	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
 	//nt_init_ustring(&ifname, L"\\Device\\{449F621A-04BC-4896-BBCB-7A93708EA9B8}");
 	/* taken from:

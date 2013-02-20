@@ -14,48 +14,6 @@ Purpose: Sniff data and filter it on text.
 Thanks to: n0limit,BackBon3
 */
 
-/*
- * windows driver model related links:
- *
-
-MSDN:
-
- Creating a Device Object
-http://msdn.microsoft.com/en-us/library/windows/hardware/ff546240%28v=vs.85%29.aspx
-
- IoCreateDevice
-http://msdn.microsoft.com/en-us/library/windows/hardware/ff548397%28v=vs.85%29.aspx
-
- Specifying Device Types
-http://msdn.microsoft.com/en-us/library/windows/hardware/ff563821%28v=vs.85%29.aspx
-
- CTL_CODE
-http://msdn.microsoft.com/en-us/library/ms902086.aspx
-
- NTSTATUS values
-http://msdn.microsoft.com/en-us/library/cc704588.aspx
-
-CODEPROJECT:
-
- Introduction to Drivers
-http://www.codeproject.com/Articles/9504/Driver-Development-Part-1-Introduction-to-Drivers
-
- Raw Ethernet Packet Sending
-http://www.codeproject.com/Articles/5292/Raw-Ethernet-Packet-Sending
-
-OTHER:
-
- Device and Driver Layering
-http://www-user.tu-chemnitz.de/~heha/oney_wdm/ch02b.htm
-
- DDK Quick Reference
-http://www.perisoft.net/engineer/wdmcard.htm
-
-
- *
- *
- */
-
 #pragma warning(disable:4700)
 
 #define NDIS50 1
@@ -72,30 +30,6 @@ struct timeval {
         long    tv_usec;        ///< microseconds
 };
 
-#define modname "pf"
-
-#ifndef RELEASE
-#	define printk  (fmt, ...)  DbgPrint(fmt ##__VA_ARGS__)
-#	define printm  (msg     )  printk("%s: %s: %d: %s\n"   ,           modname, __func__, __LINE__, msg )
-#	define DBG_IN              printk("%s: == >> %s: %d\n" ,           modname, __func__, __LINE__      )
-#	define DBG_OUT             printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      )
-#	define DBG_OUT_RET  (r)    printk("%s: << == %s: %d\n" ,           modname, __func__, __LINE__      ); return r
-#	define DBG_OUT_RETP (r)    printk("%s: << == %s: %d: ret = %d\n",  modname, __func__, __LINE__, r   ); return r
-#else
-#	define printk(fmt, ...)
-#endif
-
-/* TODO:
- *  - debug log in file
- *  - ddk typedefs
- *  - Ptype -> type *
- *  - define custom typedefs to C types
- *  - split DriverEntry to functions
- */
-
-#define module_init DriverEntry
-#define module_exit module_exit
-
 const WCHAR deviceLinkBuffer[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
 const WCHAR deviceNameBuffer[] = L"\\Device\\myDevice1"; // Define the device
 
@@ -109,83 +43,7 @@ int irp_request = 0;
 unsigned char *packet = NULL;
 size_t packet_size = 64 * 1024;
 
-/*
- * windows data types:
-
-http://msdn.microsoft.com/en-us/library/windows/desktop/aa383751%28v=vs.85%29.aspx
-http://msdn.microsoft.com/en-us/library/aa932351.aspx
-
- *
- */
-
-/*** data type management ***/
-
-/* TODO: RESERVED from header */
-
-/* new custom types */
-
-/* redefining existing c types */
-typedef  unsigned char                  uchar;
-
-/* redefining existing nt types */
-	/* simple */
-typedef  NTSTATUS                       nt_ret;
-typedef  NDIS_STATUS                    nd_ret;
-	/* complex */
-typedef  NDIS_PACKET                    nd_pack;
-typedef  NDIS_BUFFER                    nd_buf;
-typedef  NDIS_HANDLE                    nd_hndl;
-typedef  NDIS_EVENT                     nd_ev;
-typedef  NDIS_REQUEST                   nd_req;
-typedef  NDIS_STRING                    nd_str;
-typedef  NDIS_MEDIUM                    nd_type;
-typedef  NDIS_PROTOCOL_CHARACTERISTICS  nd_proto;
-typedef  UNICODE_STRING                 usting;
-typedef  LARGE_INTEGER                  lint;
-typedef  IO_STACK_LOCATION              io_stack;  /* PIO_STACK_LOCATION   *io_stack  */
-typedef  IRP                            irp;       /* PIRP                 *irp       */
-typedef  DEVICE_OBJECT                  dev_obj;   /* PDEVICE_OBJECT       *dev_obj   */
-typedef  DRIVER_OBJECT                  mod_obj;   /* PDRIVER_OBJECT       *mod_obj   */
-// nothing IN
-// nothing OUT
-// nothing OPTIONAL
-
-/* existing typedefs */
-// typedef char           CHAR;
-// typedef char*         PCHAR;
-// typedef wchar_t       WCHAR;
-// typedef void           VOID;
-// typedef void*         PVOID;
-// typedef unsigned long  ULONG;
-// typedef unsigned int   ULONG;
-// typedef long           LONG;
-// typedef int            NDIS_STATUS;
-// typedef long           NTSTATUS;     /* values: http://msdn.microsoft.com/en-us/library/cc704588.aspx */
-// typedef false          FALSE;
-// typedef true           TRUE;
-
-/* values */
-#define NT_OK         STATUS_SUCCESS
-#define NT_ERR        STATUS_UNSUCCESSFUL
-#define ND_OK         NDIS_STATUS_SUCCESS
-#define IS_NT_OK(r)   NT_SUCCESS(r)
-
-/* functions */
-	/* basic */
-#define nt_memzero       (     src, len)    RtlZeroMemory        (         src, len            )
-#define nt_memcpy        (dst, src, len)    RtlCopyMemory        (dst,     src, len            )
-#define nt_malloc        (          len)    ExAllocatePool       (NonPagedPool, len            )
-#define nt_free          (     src     )    ExFreePool           (         src                 )
-#define nt_irp_complete  (          ir )    IoCompleteRequest    (ir,           IO_NO_INCREMENT)
-#define nt_init_ustring  (dst, src     )    RtlInitUnicodeString (dst,     src                 )
-#define nt_creat_link    (dst, src     )    IoCreateSymbolicLink (dst,     src                 )
-#define nt_unlink_link   (     str     )    IoDeleteSymbolicLink (         str                 )
-#define nt_unlink_dev    (     dobj    )    IoDeleteDevice       (         dobj                )
-	/* complex */
-#define nt_creat (mod, extsize, name, type, props, excl, dobj) \
-		IoCreateDevice (mod, extsize, name, type, props, excl, dobj)
-
-/*** ***/
+// packet = ExAllocatePool(NonPagedPool, (aHeaderBufferLen + aBufferLen));
 
 /*
  * -- time management links:
@@ -195,62 +53,61 @@ typedef  DRIVER_OBJECT                  mod_obj;   /* PDRIVER_OBJECT       *mod_
  *  http://curl.haxx.se/mail/lib-2005-01/0089.html
  *  http://drp.su/ru/driver_dev/07_07_9-10.htm
  */
+
 int gettimeofday(struct timeval *dst)
 {
-	LARGE_INTEGER system_time;
-	LARGE_INTEGER local_time;
+	LARGE_INTEGER SystemTime;
+	LARGE_INTEGER LocalTime;
 	
-	KeQuerySystemTime(&system_time);
-	ExSystemTimeToLocalTime(&system_time, &local_time);
+	KeQuerySystemTime(&SystemTime);
+	ExSystemTimeToLocalTime(&SystemTime, &LocalTime);
 	
-	dst->tv_sec  = (LONG) (local_time.QuadPart / 10000000 - 11644473600);
-	dst->tv_usec = (LONG)((local_time.QuadPart % 10000000) / 10);
+	dst->tv_sec  = (LONG) (LocalTime.QuadPart / 10000000 - 11644473600);
+	dst->tv_usec = (LONG)((LocalTime.QuadPart % 10000000) / 10);
 	
 	return 0;
 }
 
-NTSTATUS OnOpen(IN PDEVICE_OBJECT dobj, IN PIRP irp)
+NTSTATUS OnOpen(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
-	DBG_IN;
-	
-	printk("%s: ndSniff OnOpen called\n");
+	DbgPrint("ndSniff OnOpen called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnClose(IN PDEVICE_OBJECT dobj, IN PIRP irp)
+NTSTATUS OnClose(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
 	DbgPrint("ndSniff OnClose called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnRead(IN PDEVICE_OBJECT dobj, IN PIRP irp)
+NTSTATUS OnRead(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
 	DbgPrint("ndSniff OnRead called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnWrite(IN PDEVICE_OBJECT dobj, IN PIRP irp)
+NTSTATUS OnWrite(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
 	DbgPrint("ndSniff OnWrite called\n");
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS OnIoControl(IN PDEVICE_OBJECT dobj, IN PIRP irp)
+NTSTATUS OnIoControl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
-	PIO_STACK_LOCATION sl;
-	ULONG ctl_code;
-	PVOID ubuf = irp->AssociatedIrp.SystemBuffer;
+	PIO_STACK_LOCATION IrpSl;
+	ULONG CtlCode;
+	PVOID pBuf = Irp->AssociatedIrp.SystemBuffer;
 	PCHAR sayhello = "Hi! From kernelLand.";
 	
 	DbgPrint("ndSniff OnIoControl called\n");
 	
 	/* Initialise IrpSl */
-	sl = IoGetCurrentIrpStackLocation(irp);
+	IrpSl = IoGetCurrentIrpStackLocation(Irp);
 	
 	/* Catch the IOCTL Code */
-	ctl_code = sl->Parameters.DeviceIoControl.IoControlCode;
+	CtlCode = IrpSl->Parameters.DeviceIoControl.IoControlCode;
 	
-	switch (ctl_code) {
+	switch (CtlCode) {
 		case IOCTL_HELLO:
 			irp_request = 1;
 			
@@ -258,10 +115,10 @@ NTSTATUS OnIoControl(IN PDEVICE_OBJECT dobj, IN PIRP irp)
 				continue;
 			}
 			
-			//DbgPrint("Received from the userLand: %s", ubuf);
-			RtlZeroMemory(ubuf, IrpSl->Parameters.DeviceIoControl.InputBufferLength);
-			//RtlCopyMemory(ubuf, sayhello, strlen(sayhello));
-			RtlCopyMemory(ubuf, packet, packet_ready);
+			//DbgPrint("Received from the userLand: %s", pBuf);
+			RtlZeroMemory(pBuf, IrpSl->Parameters.DeviceIoControl.InputBufferLength);
+			//RtlCopyMemory(pBuf, sayhello, strlen(sayhello));
+			RtlCopyMemory(pBuf, packet, packet_ready);
 			/* finish IRP request */
 			Irp->IoStatus.Status = STATUS_SUCCESS;
 			Irp->IoStatus.Information = packet_ready;
@@ -397,7 +254,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT theDriverObject, IN PUNICODE_STRING theRe
 	}
 	
 	DbgPrint("ndSniff: preparing buffer for packet");
-	packet = (uchar *) ExAllocatePool(NonPagedPool, packet_size);
+	packet = ExAllocatePool(NonPagedPool, packet_size);
 	if (!packet) {
 		DbgPrint("ndSniff: ERROR: ENOMEM");
 	}
