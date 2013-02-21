@@ -740,6 +740,18 @@ ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
 #define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define STR_DEV_LEN 46*2
 
+/*
+ * TODO:
+ * - functions' name refactoring (e.g., init_ndis_device -> iface_open/iface_close)
+ * - merging code with connect/ tree, integrating into build process
+ * - generate full device string in kernel space
+ * - fixing FILE_DEVICE_, adding DIRECT_IO in device extension
+ * - extending ioctl's (_recv,_send,_open,_close,_file,...)
+ * - adding autodetect of ifaces in user space
+ * - adding file support in user/kernel space
+ * - scripts for autobuild(nmake)/autosign(see msdn)
+ */
+
 struct user_irp {
 	int irp_type;
 	wchar_t irp_data[STR_DEV_LEN];
