@@ -286,10 +286,10 @@ struct module_ctx {
 	nd_ev          closew_event;
 };
 
-
+#define STR_DEV_LEN 46*2
 struct user_irp {
 	int irp_type;
-	wchar_t irp_data[38];
+	wchar_t irp_data[STR_DEV_LEN];
 };
 
 /*** *** *** declarations of functions *** *** ***/
@@ -776,7 +776,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 	switch (ctl_code) {
 		case IOCTL_HELLO:
 			if ((((struct user_irp *) ubuf)->irp_type) == IRP_IFACE) {
-				init_ndis_device((((struct user_irp *) ubuf)->irp_data), 38);
+				init_ndis_device((((struct user_irp *) ubuf)->irp_data), STR_DEV_LEN);
 				IRP_DONE(i, 0, NT_OK);
 			} else {
 				printm("IOCTL >>");
@@ -831,9 +831,9 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	//g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}" // 38
 	
 	nd_ret ret, err;
-	ustring ifname;
+	ustring ifname, tmp;
 	uint mindex = 0;
-	uchar *tmp = NULL;
+	// uchar *tmp = NULL;
 	
 	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
 	
@@ -841,8 +841,39 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	
 	printm("init global adapter name");
 	
-	DbgPrint("DEVICE(input  s) == %s\n", iface_name);
-	//DbgPrint("DEVICE(input ws) == %ws\n", iface_name);
+	DbgPrint("DEVICE(input  s) == %s\n",  iface_name);
+	DbgPrint("DEVICE(input ws) == %ws\n", iface_name);
+	
+	/* WORK
+	printm("init local adapter name");
+	nt_init_ustring(&ifname, iface_name);
+	
+	if (ifname.Buffer) {
+	
+	DbgPrint("ifname  s ==  %s\n", ifname.Buffer);
+	DbgPrint("ifname ws) == %ws\n", ifname.Buffer);
+	} else {
+		DbgPrint("NULL!!1\n");
+	}
+	*/
+	
+	/* CHECK */
+	printm("init local adapter name");
+	nt_init_ustring(&g_iface_name, iface_name);
+	
+	if (ifname.Buffer) {
+	
+	DbgPrint("g ifname  s ==  %s\n", g_iface_name.Buffer);
+	DbgPrint("g ifname ws) == %ws\n", g_iface_name.Buffer);
+	} else {
+		DbgPrint("NULL!!1\n");
+	}
+	
+	DbgPrint("g dev path  s ==  %s\n", g_devpath);
+	DbgPrint("g dev path ws == %ws\n", g_devpath);
+	DbgPrint("g dev link  s ==  %s\n", g_devlink);
+	DbgPrint("g dev link ws == %ws\n", g_devlink);
+	
 	/*
 	g_iface_name.Length = 0;
 	g_iface_name.MaximumLength = iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL);
@@ -858,6 +889,8 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	RtlAppendUnicodeToString(&g_iface_name, iface_name + g_dev_prefix.Length / sizeof(WCHAR));
 	DbgPrint("DEVICE(global  s) == %s\n", g_iface_name.Buffer);
 	*/
+	
+	/*
 	tmp = nt_malloc(iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL));
 	if (!(tmp)) {
 		printdbg("MEMORY 2: NULL\n");
@@ -870,20 +903,28 @@ void init_ndis_device(wchar_t *iface_name, int iface_len)
 	DbgPrint("DEVICE(tmp2 s) == %s\n", tmp);
 	strcat(tmp, '\0');
 	DbgPrint("DEVICE(tmp3 s) == %s\n", tmp);
-
+	*/
+	
+	/*
 	printm("init global adapter name");
 	nt_init_ustring(&g_iface_name, iface_name);
 	
 	DbgPrint("DEVICE(global  s) == %s\n", g_iface_name.Buffer);
 	DbgPrint("DEVICE(global ws) == %ws\n", g_iface_name.Buffer);
-	
+	*/
 	/*
 	g_iface_ready = 1;
 	*/
 	
 	/*
+	DbgPrint("iface_name  s) ==  %s\n", iface_name);
+	DbgPrint("iface_name ws) == %ws\n", iface_name);
+	
 	printm("init local adapter name");
 	nt_init_ustring(&ifname, iface_name);
+	
+	DbgPrint("ifname  s) ==  %s\n", ifname.Buffer);
+	DbgPrint("ifname ws) == %ws\n", ifname.Buffer);
 	*/
 	
 	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");

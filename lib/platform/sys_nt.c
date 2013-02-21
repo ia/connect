@@ -738,10 +738,11 @@ ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
 
 #define SIOCTL_TYPE 40000
 #define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define STR_DEV_LEN 46*2
 
 struct user_irp {
 	int irp_type;
-	wchar_t irp_data[38];
+	wchar_t irp_data[STR_DEV_LEN];
 };
 
 int __cdecl main(int argc, char* argv[])
@@ -754,7 +755,7 @@ int __cdecl main(int argc, char* argv[])
 	char *sayhello = "Hi! From UserLand";
 	
 	uirp.irp_type = 1;
-	memcpy(uirp.irp_data, "{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", 38);
+	memcpy(uirp.irp_data, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", STR_DEV_LEN);
 	// Fills the array 'out' by zeros
 	ZeroMemory(out, sizeof(out));
 	
