@@ -87,10 +87,11 @@
 #define LMODNAME    "pf"
 
 #ifndef RELEASE
-#	define printk(  fmt, ...   )    DbgPrint(fmt ##__VA_ARGS__)
+#	define printk(  fmt, ...   )    DbgPrint(fmt, __VA_ARGS__)
 #	define printm(    m        )    DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, m      )
 #	define printl                   DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__         )
 #	define printmd(   m, d     )    DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, m, d, d)
+#	define printdbg(fmt, ...   )    DbgPrint("%s: %s: %d: " ## fmt,                       MODNAME, __func__, __LINE__, __VA_ARGS__)
 #	define DBG_IN                   DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__         )
 #	define DBG_OUT                  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         )
 #	define DBG_OUT_V                DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         ); return
@@ -116,7 +117,7 @@
 //#	define DBG_OUT_RET_PM(  m, r)  DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
 //#	define DBG_OUT_RET_PMV( m, r)  DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
 
-#	define printdbg(fmt, ...   )    printl; DbgPrint(fmt ##__VA_ARGS__)
+//#	define printdbg( fmt, ...  )    printl; DbgPrint(fmt, __VA_ARGS__)
 
 /*
 #else
@@ -141,7 +142,7 @@
 #	define DBG_IN
 #	define DBG_OUT
 #	define DBG_OUT_V                return
-#	define DBG_OUT_VM               return
+#	define DBG_OUT_VM(  m      )    return
 #	define DBG_OUT_R(      r   )    return r
 #	define DBG_OUT_RP(     r   )    return r
 #	define DBG_OUT_VP(     r   )    return
@@ -153,10 +154,11 @@
 /* new */
 #define  RET_ON_ERRND_VPM( m, r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VPM(m, r);           }
 #define  RET_ON_ERRND_RPM( m, r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_RPM(m, r);           }
-#define  RET_ON_ERRND_VP(     r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VP(r);               }
-#define  RET_ON_ERRNT_VP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_VP(r);               }
-#define  RET_ON_ERRNT_RP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_RP(r);               }
-#define  RET_ON_V_RP(         r, v )    if (r != v)           { DBG_OUT_RP(r);               }
+#define  RET_ON_ERRND_VP(     r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VP(    r);           }
+#define  RET_ON_ERRNT_VP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_VP(    r);           }
+#define  RET_ON_ERRNT_RP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_RP(    r);           }
+#define  RET_ON_V_RP(         r, v )    if (r != v)           { DBG_OUT_RP(    r);           }
+#define  RET_ON_V_VM(   v, m       )    if (v)                { DBG_OUT_VM( m   );           }
 #define  RET_ON_V_RPM(  v, m, r    )    if (v)                { DBG_OUT_RPM(m, r);           }
 #define  RET_ON_V_VPM(  v, m, r    )    if (v)                { DBG_OUT_VPM(m, r);           }
 
@@ -340,7 +342,10 @@ struct module_ctx {
 };
 
 /* TODO: fix user irp management arch */
-#define STR_DEV_LEN 46*2
+#define LEN_IFACE_DEV 46*sizeof(WCHAR)
+#define LEN_IFACE     38*sizeof(WCHAR)
+
+#define STR_DEV_LEN LEN_IFACE
 struct user_irp {
 	int irp_type;
 	wchar_t irp_data[STR_DEV_LEN];
@@ -521,10 +526,7 @@ void ndis_packet_send(const uchar *packet, int len)
 	
 	DBG_IN;
 	
-	if (!g_iface_hndl[g_iface_indx] || !packet || !g_iface_ready) {
-		
-		DBG_OUT_V;
-	}
+	RET_ON_V_VM((!g_iface_hndl[g_iface_indx] || !packet || !g_iface_ready), "iface is not ready for sending");
 	
 	NdisAllocatePacket(&ret, &npacket, g_packet_pool);
 	RET_ON_V_VPM((!(IS_ND_OK(ret))), "NdisAllocatePacket", ret);
@@ -891,7 +893,7 @@ void init_sending(void)
 }
 
 
-void iface_open(wchar_t *iface_name, int iface_len)
+void iface_open_old(wchar_t *iface_name, int iface_len)
 {
 	//g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}" // 38
 	
@@ -1022,6 +1024,58 @@ void iface_open(wchar_t *iface_name, int iface_len)
 	ndis_iface_open(&g_usrctx, ret, ND_OK);
 	
 	init_sending();
+}
+
+
+void iface_open(wchar_t *iface_name, int iface_len)
+{
+	nd_ret ret, err;
+	ustring ifname, ifname_path;
+	uint mindex = 0;
+	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
+	
+	DBG_IN;
+	
+	printdbg("iface_name == %ws\n", iface_name);
+	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
+	
+	printdbg("sizeof(wchar_t) == %d\n", sizeof(wchar_t));
+	printdbg("sizeof(WCHAR) == %d\n", sizeof(WCHAR));
+	
+	ifname_path.Length = 0;
+	ifname_path.MaximumLength = (ushort) (iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL));
+	ifname_path.Buffer = nt_malloc(ifname_path.MaximumLength);
+	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
+	
+	printm("init local adapter name");
+	//nt_init_ustring(&ifname_path, &g_dev_prefix);
+	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
+	RtlAppendUnicodeToString(&ifname_path, iface_name);
+	
+	DbgPrint("ifname dev  s ==  %s\n", ifname_path.Buffer);
+	DbgPrint("ifname dev ws == %ws\n", ifname_path.Buffer);
+	
+	//RtlAppendUnicodeStringToString(&ifname_path, iface_name);
+	
+	//nt_init_ustring(&ifname, iface_name);
+	/*
+	DbgPrint("ifname  s) ==  %s\n", ifname_path.Buffer);
+	DbgPrint("ifname ws) == %ws\n", ifname_path.Buffer);
+	*/
+	printm("opening adapter");
+	NdisOpenAdapter(&ret, &err, &g_iface_hndl[g_iface_indx], &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname_path, 0, NULL);
+	if ((!(IS_ND_OK(ret))) && (!(IS_NT_OK(ret)))) {
+		printmd("NdisOpenAdapter: error", ret);
+		if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
+			printm("NdisOpenAdapter: adapter not found");
+		}
+		DBG_OUT_VP(ret);
+	}
+	
+	ndis_iface_open(&g_usrctx, ret, ND_OK);
+	// TODO: g_iface_ready = 1;
+	init_sending();
+	DBG_OUT_V;
 }
 
 

@@ -738,10 +738,16 @@ ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
 
 #define SIOCTL_TYPE 40000
 #define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
 #define STR_DEV_LEN 46*2
+#define STR_DEV_LEN 38*sizeof(WCHAR)
+
+#define LEN_IFACE_DEV 46*sizeof(WCHAR)
+#define LEN_IFACE     38*sizeof(WCHAR)
 
 /*
  * TODO:
+ * - check and clean up duplicate/old/unused code
  * - functions' name refactoring (e.g., init_ndis_device -> iface_open/iface_close)
  * - iface_open/iface_close status/error management
  * - merging code with connect/ tree, integrating into build process
@@ -768,7 +774,8 @@ int __cdecl main(int argc, char* argv[])
 	char *sayhello = "Hi! From UserLand";
 	
 	uirp.irp_type = 1;
-	memcpy(uirp.irp_data, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", STR_DEV_LEN);
+	//memcpy(uirp.irp_data, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", STR_DEV_LEN);
+	memcpy(uirp.irp_data, L"{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", LEN_IFACE);
 	// Fills the array 'out' by zeros
 	ZeroMemory(out, sizeof(out));
 	
