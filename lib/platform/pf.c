@@ -10,7 +10,6 @@
 #define  NDIS50            1
 #define  PROTO_NDIS_MAJOR  5
 #define  PROTO_NDIS_MINOR  0
-/* TODO: use define minor/major */
 
 /* includes */
 
@@ -32,24 +31,24 @@
 #define  ETHER_ADDR_LEN    ETH_ALEN   /* Size of ethernet addr */
 
 #ifndef __func__
-#	define __func__ __FUNCTION__      /* stupid MS monkeys cannot into standart defines */
+#	define __func__ __FUNCTION__  /* stupid MS monkeys cannot into standart defines */
 #endif
 
-/* TODO: rename two */
-#define  RESERVED(_p)           ((PPACKET_RESERVED)((_p)->ProtocolReserved))
+#define  RESERVED(_p)           ((PPACKET_RESERVED)((_p)->ProtocolReserved))     /* for backward compatibility */
 #define  RSRVD_PCKT_CTX(_p)     ((struct packet_ctx *)((_p)->ProtocolReserved))
 #define  TRANSMIT_PACKETS       128
 #define  MTU                    1514
 
 /* ioctl related defines */
+/* TODO: refactoring me */
 #define  SIOCTL_TYPE            40000
 #define  IOCTL_HELLO CTL_CODE   (SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA|FILE_WRITE_DATA)
 #define  FILE_DEVICE_ROOTKIT    0x00002a7b
 
 /* proto related constants */
-#define  IPPROTO_ICMP       1   /* control message protocol */
-#define  IPPROTO_TCP        6   /* tcp */
-#define  IPPROTO_UDP       17   /* user datagram protocol */
+#define  IPPROTO_ICMP       1   /* control message protocol      */
+#define  IPPROTO_TCP        6   /* transmission control protocol */
+#define  IPPROTO_UDP       17   /* user datagram protocol        */
 
 /* values */
 #define  NT_OK                 STATUS_SUCCESS
@@ -57,12 +56,13 @@
 #define  ND_OK                 NDIS_STATUS_SUCCESS
 #define  IS_ND_OK(   r)        (r == NDIS_STATUS_SUCCESS)
 #define  IS_NT_OK(   r)        NT_SUCCESS(r)
-#define  IS_NT_ERR(  r)        NT_ERROR  (r)  /* http://msdn.microsoft.com/en-us/library/windows/hardware/ff565436%28v=vs.85%29.aspx */
+#define  IS_NT_ERR(  r)        NT_ERROR  (r)                      /* http://msdn.microsoft.com/en-us/library/windows/hardware/ff565436%28v=vs.85%29.aspx */
 #define  IRP_ASBUF(  i)        (i->AssociatedIrp.SystemBuffer)
 #define  IRP_IBLEN(  s)        (s->Parameters.DeviceIoControl.InputBufferLength)
 #define  IRP_IOCTL(  s)        (s->Parameters.DeviceIoControl.IoControlCode)
 #define  IRP_DONE(  rp, info, ret) \
 		rp->IoStatus.Status = ret; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
+
 /* functions */
 	/* basic */
 #define    memzero(            src, len)    memset(                       src,     '\0',len            )
@@ -88,25 +88,26 @@
 
 #ifndef RELEASE
 #	define printk(  fmt, ...   )    DbgPrint(fmt ##__VA_ARGS__)
-#	define printm(  msg        )    DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, msg      )
-#	define printl                   DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__           )
-#	define printmd( msg, d     )    DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, msg, d, d)
-#	define DBG_IN                   DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
-#	define DBG_OUT                  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           )
-#	define DBG_OUT_V                DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return
-#	define DBG_OUT_VM(    m    )    DbgPrint("%s: << == %s: %d: %s\n" ,                   MODNAME, __func__, __LINE__, m        ); return
+#	define printm(    m        )    DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, m      )
+#	define printl                   DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__         )
+#	define printmd(   m, d     )    DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, m, d, d)
+#	define DBG_IN                   DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__         )
+#	define DBG_OUT                  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         )
+#	define DBG_OUT_V                DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         ); return
+#	define DBG_OUT_VM(    m    )    DbgPrint("%s: << == %s: %d: %s\n" ,                   MODNAME, __func__, __LINE__, m      ); return
 
+/* TODO: test and verify */
 /* new */
-/* return */
-#	define DBG_OUT_R(       r  )    DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return r
+/* Return */
+#	define DBG_OUT_R(       r  )    DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         ); return r
 /* Return value + Print value */
-#	define DBG_OUT_RP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return r
+#	define DBG_OUT_RP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r, r   ); return r
 /* return Void, but Print returned value from the previous call */
-#	define DBG_OUT_VP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return
+#	define DBG_OUT_VP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r, r   ); return
 /* Return value, Print returned value and additional Message with information */
-#	define DBG_OUT_RPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
+#	define DBG_OUT_RPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m, r, r); return r
 /* return Void, Print returned value and additional Message with information */
-#	define DBG_OUT_VPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
+#	define DBG_OUT_VPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m, r, r); return
 
 /* old */
 //#	define DBG_OUT_RET(     r   )  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return r
@@ -132,6 +133,21 @@
 #	define DBG_OUT_RET_V( m, r)    return
 */
 
+#else
+#	define printk(    fmt, ... )
+#	define printm(      m      )
+#	define printl
+#	define printmd(     m, d   )
+#	define DBG_IN
+#	define DBG_OUT
+#	define DBG_OUT_V                return
+#	define DBG_OUT_VM               return
+#	define DBG_OUT_R(      r   )    return r
+#	define DBG_OUT_RP(     r   )    return r
+#	define DBG_OUT_VP(     r   )    return
+#	define DBG_OUT_RPM( m, r   )    return r
+#	define DBG_OUT_VPM( m, r   )    return
+#	define printdbg( fmt, ...  )
 #endif
 
 /* new */
@@ -225,6 +241,7 @@ typedef  KSPIN_LOCK                     spin_lock;
 typedef  KIRQL                          irq;
 typedef  NDIS_PHYSICAL_ADDRESS          nd_phyaddr;
 
+
 /*** custom structs ***/
 
 
@@ -247,9 +264,11 @@ struct ether_header {
 	uint16_t ether_type;             /* packet type ID field */
 } /*__attribute__ ((__packed__))*/;
 
+
 struct in_addr {
-    unsigned long s_addr;          // load with inet_pton()
+    unsigned long s_addr;                // load with inet_pton()
 };
+
 
 struct ip {
 //#if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -278,7 +297,7 @@ struct ip {
 };
 
 
-typedef struct _PACKET_RESERVED {
+typedef struct _PACKET_RESERVED { /* for backward compatibility */
 	LIST_ENTRY  ListElement;
 	PIRP        Irp;
 	PVOID       pBuffer; /* used for buffers built in kernel mode */
@@ -320,20 +339,24 @@ struct module_ctx {
 	nd_ev          closew_event;
 };
 
+/* TODO: fix user irp management arch */
 #define STR_DEV_LEN 46*2
 struct user_irp {
 	int irp_type;
 	wchar_t irp_data[STR_DEV_LEN];
 };
 
-/*** *** *** declarations of functions *** *** ***/
 
+/*** *** *** declarations of functions (code map) *** *** ***/
 
+/* routine */
 int      gettimeofday       (struct timeval *dst);
 
+/* all this code - for this two functions */
 void     ndis_packet_recv   (const uchar *packet, int len);
 void     ndis_packet_send   (const uchar *packet, int len);
 
+/* ndis proto callbacks */
 void     ndis_status        (nd_hndl protobind_ctx  , nd_ret      s        , void    *sbuf, uint sbuf_len);
 void     ndis_status_cmplt  (nd_hndl protobind_ctx);
 void     ndis_iface_open    (nd_hndl protobind_ctx  , nd_ret      s        , nd_ret   err);
@@ -350,15 +373,18 @@ void     ndis_request       (nd_hndl protobind_ctx  , nd_req     *nreq     , nd_
 void     ndis_pnp           (nd_hndl protobind_ctx  , nd_pnp_ev  *pev);
 void     ndis_unload        (void);
 
+/* device callbacks */
 nt_ret   dev_open     (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_read     (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_write    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_ioctl    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_close    (dev_obj *dobj, irp *i)           ;
 
+/* interface management */
 void     iface_open   (wchar_t *iface, int iface_len)   ;
 void     iface_close  (wchar_t *iface, int iface_len)   ;
 
+/* init/exit routine */
 nt_ret   init_ndis    (mod_obj *mobj)                   ;
 nt_ret   init_device  (mod_obj *mobj)                   ;
 nt_ret   init_ctx     (void)                            ;
@@ -366,10 +392,15 @@ void     exit_ndis    (mod_obj *mobj)                   ;
 void     exit_device  (mod_obj *mobj)                   ;
 void     exit_module  (mod_obj *mobj)                   ;
 nt_ret   init_module  (mod_obj *mobj)                   ;
-//nt_ret   DriverEntry  (mod_obj *mobj, ustring *regpath) ;
+
+/* mainline entry point:
+nt_ret   DriverEntry  (mod_obj *mobj, ustring *regpath) ;
+*/
 
 
 /*** *** *** global variables *** *** ***/
+
+/* TODO: remove unused */
 
 nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device\\");
 
@@ -522,7 +553,7 @@ void ndis_packet_send(const uchar *packet, int len)
 }
 
 
-/*** *** *** ndis routine *** *** ***/
+/*** *** *** ndis proto callbacks *** *** ***/
 
 
 void ndis_status(nd_hndl protobind_ctx, nd_ret s, void *sbuf, uint sbuf_len)
@@ -719,18 +750,12 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	hdr_tbuf     = RSRVD_PCKT_CTX(tx_packet)->phdr_buf     ;
 	hdr_tbuf_len = RSRVD_PCKT_CTX(tx_packet)->phdr_buf_len ;
 	
-	/*
-	aHeaderBufferP = Ethernet Header
-	aBufferP tcp/ip
-	*/
-	
 	if (tbuf && hdr_tbuf) {
 		uchar *pbuf = NULL;
 		pbuf = nt_malloc(hdr_tbuf_len + tbuf_len);
 		if (pbuf) {
 			memcpy(pbuf, hdr_tbuf, hdr_tbuf_len);
 			memcpy(pbuf + hdr_tbuf_len, tbuf, tbuf_len);
-			/* woei complete packet, parse it */
 			ndis_packet_recv(pbuf, (hdr_tbuf_len + tbuf_len));
 			nt_free(pbuf);
 		}
@@ -745,7 +770,7 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	
 	NdisReinitializePacket(tx_packet);
 	NdisFreePacket(tx_packet);
-	
+	/* packet is gone here */
 	g_packet_ready = 0;
 	DBG_OUT_V;
 }
@@ -772,7 +797,7 @@ void ndis_unload(void)
 }
 
 
-/*** *** *** device routine *** *** ***/
+/*** *** *** device callbacks *** *** ***/
 
 
 nt_ret dev_open(dev_obj *dobj, irp *i)
@@ -844,11 +869,12 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
 	DBG_IN;
+	/* TODO: iface_close() ? */
 	DBG_OUT_R(NT_OK);
 }
 
 
-/*** *** *** init routine *** *** ***/
+/*** *** *** interface management *** *** ***/
 
 
 void init_sending(void)
@@ -1016,6 +1042,9 @@ void iface_close()
 }
 
 
+/*** *** *** init/exit routine *** *** ***/
+
+
 nt_ret init_ndis(mod_obj *mobj)
 {
 	nd_ret ret, err;
@@ -1062,45 +1091,6 @@ nt_ret init_ndis(mod_obj *mobj)
 	NdisRegisterProtocol(&ret, &g_proto_hndl, &proto, sizeof(nd_proto));
 	RET_ON_ERRND_RPM("NdisRegisterProtocol: error", ret);
 	
-	/*
-	printm("waiting iface name");
-	while (!g_iface_ready) {
-		continue;
-	}
-	*/
-	
-	/*
-	printm("init adapter name");
-	nt_init_ustring(&ifname, g_iface_name->Buffer);
-	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
-	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
-	//nt_init_ustring(&ifname, L"\\Device\\{449F621A-04BC-4896-BBCB-7A93708EA9B8}");
-	*/
-	/* taken from:
-	 * \HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\{...}
-	 */
-	
-	/*
-	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, &g_iface_hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
-	if (!(IS_ND_OK(ret))) {
-		if (!(IS_NT_OK(ret))) {
-			printmd("NdisOpenAdapter: error", ret);
-			if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
-				printm("NdisOpenAdapter: adapter not found");
-			}
-			
-			NdisDeregisterProtocol(&ret, g_proto_hndl);
-			if (!(IS_NT_OK(ret))) {
-				printm("NdisDeregisterProtocol: error");
-			}
-			return NT_ERR;
-		}
-	}
-	
-	ndis_iface_open(&g_usrctx, ret, ND_OK);
-	*/
-
 	printm("preparing buffer for packet");
 	g_packet = (uchar *) nt_malloc(g_packet_size);
 	RET_ON_NULL(g_packet);
@@ -1149,7 +1139,7 @@ nt_ret init_device(mod_obj *mobj)
 nt_ret init_ctx(void)
 {
 	DBG_IN;
-/*
+/* TODO: ?
 	g_modctx.device_path = g_devpath;
 	g_modctx.device_link = g_devlink;
 	g_modctx.packet = NULL;
@@ -1196,10 +1186,6 @@ void exit_device(mod_obj *mobj)
 	
 	printm("removing device link");
 	nt_unlink_link(&devname_link);
-	/*
-	printm("removing device path");
-	nt_unlink_dev(g_device);
-	*/
 	
 	printm("removing device object");
 	nt_unlink_dev(mobj->DeviceObject);
