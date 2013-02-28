@@ -66,7 +66,6 @@
 /* functions */
 
 	/* basic */
-#define    memzero(            src, len)    memset(                        src,     '\0',len       )
 #define nt_malloc(             len     )    ExAllocatePool(                NonPagedPool, len       )
 #define nt_free(               src     )    ExFreePool(                             src            )
 #define nt_memzero(            src, len)    RtlZeroMemory(                          src, len       )
@@ -83,9 +82,12 @@
 #define nt_splock_lock(  lock, i       )    KeAcquireSpinLock(            lock,     i              )
 #define nt_splock_unlock(lock, i       )    KeReleaseSpinLock(            lock,     i              )
 
+#define LOCK(s   )    if(!s) s = 1
+#define UNLOCK(s )    if( s) s = 0
+
 	/* complex */
 #define nt_creat(mod, name, dev) \
-	IoCreateDevice(mod, 0, name, FILE_DEVICE_ROOTKIT, FILE_DEVICE_SECURE_OPEN, false, dev)
+	IoCreateDevice(mod, 0, name, FILE_DEVICE_TRANSPORT, FILE_DEVICE_SECURE_OPEN, false, dev)
 
 /* routine */
 #define  PROTONAME  "pf"
@@ -356,7 +358,7 @@ nt_ret   dev_close    (dev_obj *dobj, irp *i)           ;
 
 /* interface management */
 void     iface_open   (wchar_t *iface, int iface_len)   ;
-void     iface_close  (wchar_t *iface, int iface_len)   ;
+void     iface_close  (void)                            ;
 
 /* init/exit routine */
 nt_ret   init_ndis    (mod_obj *mobj)                   ;
@@ -405,7 +407,7 @@ nd_phyaddr         g_phymax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
 /*** *** *** helper functions *** *** ***/
 
 
-int gettimeofday(struct timeval *dst)
+int gettimeofday(struct timeval *tv)
 {
 	lrgint system_time;
 	lrgint local_time;
@@ -413,8 +415,8 @@ int gettimeofday(struct timeval *dst)
 	KeQuerySystemTime(&system_time);
 	ExSystemTimeToLocalTime(&system_time, &local_time);
 	
-	dst->tv_sec  = (long) (local_time.QuadPart / 10000000 - 11644473600);
-	dst->tv_usec = (long)((local_time.QuadPart % 10000000) / 10);
+	tv->tv_sec  = (long) (local_time.QuadPart / 10000000 - 11644473600);
+	tv->tv_usec = (long)((local_time.QuadPart % 10000000) / 10);
 	
 	return 0;
 }
@@ -425,12 +427,11 @@ int gettimeofday(struct timeval *dst)
 
 void ndis_packet_recv(const uchar *packet, int len)
 {
-	struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
+	//struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
 	
 	DBG_IN;
-	//printmd("proto:", iph->ip_p);
 	
-	g_packet_ready = 0;
+	UNLOCK(g_packet_ready);
 	nt_memzero(g_packet, g_packet_size);
 	memcpy(g_packet, packet, len);
 	g_packet_ready = len;
@@ -439,7 +440,7 @@ void ndis_packet_recv(const uchar *packet, int len)
 		uchar *zero = nt_malloc(MTU);
 		nt_memzero(zero, MTU);
 		if (memcmp(packet, zero, MTU) == 0) {
-			printk("PACKET HIT THE WIRE!!!1\n");
+			printk("INIT PACKET HIT THE WIRE!!!1\n");
 		}
 		nt_free(zero);
 	}
@@ -508,7 +509,8 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	nd_ret ret;
 	nd_ret ret_req;
 	nd_req ndis_req;
-	ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL; //NDIS_PACKET_TYPE_PROMISCUOUS;
+	ulong pcktype = NDIS_PACKET_TYPE_PROMISCUOUS;
+	//ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL;
 	
 	DBG_IN;
 	
@@ -610,6 +612,9 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 	
 	tx_size = psize;
 	
+	/* ??? */
+	//DBG_OUT_R(STATUS_DROP);
+	
 	if ((hdr_buf_len > ETH_HLEN) || (tx_size > (MTU - ETH_HLEN))) {
 		DBG_OUT_RPM("ndis_recv: packet not accepted", NDIS_STATUS_NOT_ACCEPTED);
 	}
@@ -704,7 +709,7 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	NdisReinitializePacket(tx_packet);
 	NdisFreePacket(tx_packet);
 	/* packet is gone here */
-	g_packet_ready = 0;
+	UNLOCK(g_packet_ready);
 	DBG_OUT_V;
 }
 
@@ -833,11 +838,7 @@ void iface_open(wchar_t *iface_name, int iface_len)
 	
 	DBG_IN;
 	
-	printdbg("iface_name == %ws\n", iface_name);
-	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
-	
-	printdbg("sizeof(wchar_t) == %d\n", sizeof(wchar_t));
-	printdbg("sizeof(WCHAR) == %d\n", sizeof(WCHAR));
+	printdbg("input: iface_name == %ws\n", iface_name);
 	
 	ifname_path.Length = 0;
 	ifname_path.MaximumLength = (ushort) (iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL));
@@ -845,20 +846,10 @@ void iface_open(wchar_t *iface_name, int iface_len)
 	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
 	
 	printm("init local adapter name");
-	//nt_ustring_init(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, iface_name);
+	printdbg("output: ifname_path == %ws\n", ifname_path.Buffer);
 	
-	DbgPrint("ifname dev  s ==  %s\n", ifname_path.Buffer);
-	DbgPrint("ifname dev ws == %ws\n", ifname_path.Buffer);
-	
-	//RtlAppendUnicodeStringToString(&ifname_path, iface_name);
-	
-	//nt_ustring_init(&ifname, iface_name);
-	/*
-	DbgPrint("ifname  s) ==  %s\n", ifname_path.Buffer);
-	DbgPrint("ifname ws) == %ws\n", ifname_path.Buffer);
-	*/
 	printm("opening adapter");
 	NdisOpenAdapter(&ret, &err, &g_iface_hndl[g_iface_indx], &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname_path, 0, NULL);
 	if ((!(IS_ND_OK(ret))) && (!(IS_NT_OK(ret)))) {
@@ -870,7 +861,7 @@ void iface_open(wchar_t *iface_name, int iface_len)
 	}
 	
 	ndis_iface_open(&g_usrctx, ret, ND_OK);
-	// TODO: g_iface_ready = 1;
+	LOCK(g_iface_ready);
 	init_sending();
 	DBG_OUT_V;
 }
@@ -888,6 +879,8 @@ void iface_close()
 		printm("waiting ndis event");
 		NdisWaitEvent(&g_closew_event, 0);
 	}
+	
+	UNLOCK(g_iface_ready);
 	
 	DBG_OUT;
 }
@@ -970,7 +963,8 @@ nt_ret init_device(mod_obj *mobj)
 	ret = nt_creat(mobj, &devname_path, &g_device);
 	RET_ON_ERRNT_RP(ret);
 	
-	/* TODO: DEVICE_EXTENSION management */
+	printm("setting O_DIRECT for created device");
+	g_device->Flags |= DO_DIRECT_IO;
 	
 	printm("creating symlink for device");
 	ret = nt_creat_link(&devname_link, &devname_path);
