@@ -748,7 +748,7 @@ ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
 /*
  * TODO:
  * - check and clean up duplicate/old/unused code
- * - functions' name refactoring (e.g., init_ndis_device -> iface_open/iface_close)
+ * - critical sections for packet management
  * - iface_open/iface_close status/error management
  * - merging code with connect/ tree, integrating into build process
  * - generate full device string in kernel space

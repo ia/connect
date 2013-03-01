@@ -201,6 +201,7 @@ typedef  DEVICE_OBJECT                  dev_obj;   /* PDEVICE_OBJECT       *dev_
 typedef  MDL                            mdl;       /* PMDL                 *mdl       */
 typedef  IRP                            irp;       /* PIRP                 *irp       */
 typedef  IO_STACK_LOCATION              io_stack;  /* PIO_STACK_LOCATION   *io_stack  */
+typedef  FILE_OBJECT                    file_obj;  /* PFILE_OBJECT         *file_obj  */
 typedef  NDIS_STRING                    nd_str;
 typedef  NDIS_PACKET                    nd_pack;
 typedef  NDIS_BUFFER                    nd_buf;
@@ -213,7 +214,6 @@ typedef  LIST_ENTRY                     lent;
 typedef  KSPIN_LOCK                     spin_lock;
 typedef  KIRQL                          irq;
 typedef  NDIS_PHYSICAL_ADDRESS          nd_phyaddr;
-
 
 /*** custom structs ***/
 
@@ -295,6 +295,11 @@ struct packet_ctx {
 struct user_ctx {
 	ulong          data;
 	nd_ret         status;
+};
+
+
+struct dev_ctx {
+	wchar_t name[46 * sizeof(wchar_t)];
 };
 
 
@@ -740,7 +745,17 @@ void ndis_unload(void)
 
 nt_ret dev_open(dev_obj *dobj, irp *i)
 {
+	io_stack *sl = nt_irp_get_stack(i);
+	file_obj *fobj = sl->FileObject;
+	ustring  *fname = &fobj->FileName;
+	
 	DBG_IN;
+	
+	printdbg("file name == %ws\n", fname);
+	/* TODO: dev_ctx processing:
+	  http://www.wd-3.com/archive/namespace.htm
+	*/
+	
 	DBG_OUT_R(NT_OK);
 }
 
