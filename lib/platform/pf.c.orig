@@ -42,9 +42,8 @@
 /* ioctl related defines */
 /* TODO: refactoring me */
 #define  SIOCTL_TYPE            40000
-#define  IOCTL_HELLO CTL_CODE   (SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
-#define  SIOCSIFADDR            (SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
-//#define  FILE_DEVICE_ROOTKIT    0x00002a7b
+#define  IOCTL_HELLO CTL_CODE   (SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA|FILE_WRITE_DATA)
+#define  FILE_DEVICE_ROOTKIT    0x00002a7b
 
 /* proto related constants */
 #define  IPPROTO_ICMP       1   /* control message protocol      */
@@ -85,12 +84,6 @@
 
 #define LOCK(s   )    if(!s) s = 1
 #define UNLOCK(s )    if( s) s = 0
-
-
-#define ATOM_LOCK     nt_splock_lock(   &g_splock, &g_irq );
-#define ATOM_UNLOCK   nt_splock_unlock( &g_splock, g_irq  );
-
-#define ATOM(action)  nt_splock_lock(   &g_splock, &g_irq ); action; nt_splock_unlock(&g_splock, g_irq);
 
 	/* complex */
 #define nt_creat(mod, name, dev) \
@@ -761,7 +754,7 @@ void ndis_unload(void)
 
 nt_ret dev_open(dev_obj *dobj, irp *i)
 {
-	nt_ret r;
+	int r;
 	io_stack *sl = nt_irp_get_stack(i);
 	struct dev_ctx *dinit, *dctx;
 	ustring ifname_path;
@@ -773,12 +766,16 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		DBG_OUT_R(STATUS_DEVICE_BUSY);
 	}
 	
-	if (sl->FileObject->FileName.Length != LEN_IFACE_NAME) || ((sl->FileObject->FileName.Length + g_dev_prefix.Length) != LEN_IFACE_PATH) {
+	/* TODO: fix error management in iface_open */
+	if (iface_open(iface_path, LEN)) {
 		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
-	LOCK(dctx->lock);
+	if (sl->FileObject->FileName.Length != LEN_IFACE_NAME) || ((sl->FileObject->FileName.Length + g_dev_prefix.Length) != LEN_IFACE_PATH) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
 	
 	dev_ctx dctx = nt_malloc(sizeof(struct dev_ctx));
 	nt_memzero(dctx, sizeof(struct dev_ctx));
@@ -789,19 +786,10 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	ifname_path.Buffer = nt_malloc(ifname_path.MaximumLength);
 	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
 	
-	printm("init adapter name");
+	printm("init open adapter name");
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, sl->FileObject->FileName.Buffer);
 	nt_memcpy(dctx->path, ifname_path, LEN_IFACE_PATH);
-	
-	r = iface_open(dctx->path, LEN_IFACE_PATH, dctx->hndl)
-	if (r) {
-		IRP_DONE(i, 0, r);
-		nt_free(dctx);
-		nt_free(ifname_path.Buffer);
-		DBG_OUT_R(r);
-		//DBG_OUT_R(STATUS_INVALID_PARAMETER);
-	}
 	
 	sl->FileObject->FsContext = (void *) dctx;
 	
@@ -810,9 +798,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("dctx->name  == %ws\n", dctx->name);
 	printdbg("dctx->path  == %ws\n", dctx->path);
 	
-	LOCK(dctx->ready);
 	IRP_DONE(i, 0, NT_OK);
-	init_sending();
 	DBG_OUT_R(NT_OK);
 }
 
@@ -874,25 +860,19 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			struct dev_ctx *dinit, *dctx;
 			dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
 			
-			/* check device context: must be allocated and locked */
-			if (!dinit || !(dinit->lock)) {
+			if (!(dinit && dinit->lock && !(dinit->ready))) {
 				IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
 				//DBG_OUT_R(STATUS_DEVICE_NOT_READY);
 			}
 			
-			/* check device status - otherwise already in use */
-			if (dinit->ready) {
-				IRP_DONE(i, 0, STATUS_DEVICE_BUSY)
-			}
-			
-			/* check len of MAC in input buffer */
 			if (IRP_IBLEN(sl) != ETH_ALEN) {
 				IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 				//DBG_OUT_R(STATUS_INVALID_PARAMETER);
 			}
 			
 			nt_memcpy(dinit->mac, ubuf, ETH_ALEN);
-			LOCK(dinit->ready);
+			dinit->ready = 1;
+			//LOCK(g_iface_ready);
 			break;
 		
 		default:
@@ -929,7 +909,7 @@ void init_sending(void)
 }
 
 
-nt_ret iface_open(wchar_t *iface_name, int iface_len, nd_hndl hndl)
+void iface_open(wchar_t *iface_name, int iface_len)
 {
 	nd_ret ret, err;
 	ustring ifname, ifname_path;
@@ -951,18 +931,19 @@ nt_ret iface_open(wchar_t *iface_name, int iface_len, nd_hndl hndl)
 	printdbg("output: ifname_path == %ws\n", ifname_path.Buffer);
 	
 	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, &hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname_path, 0, NULL);
+	NdisOpenAdapter(&ret, &err, &g_iface_hndl[g_iface_indx], &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname_path, 0, NULL);
 	if ((!(IS_ND_OK(ret))) && (!(IS_NT_OK(ret)))) {
 		printmd("NdisOpenAdapter: error", ret);
 		if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
 			printm("NdisOpenAdapter: adapter not found");
 		}
-		DBG_OUT_R(ret);
+		DBG_OUT_VP(ret);
 	}
 	
 	ndis_iface_open(&g_usrctx, ret, ND_OK);
-	
-	DBG_OUT_R(NT_OK);
+//	LOCK(g_iface_ready);
+//	init_sending();
+	DBG_OUT_V;
 }
 
 
