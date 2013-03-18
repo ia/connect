@@ -808,28 +808,33 @@ int __cdecl main(int argc, char* argv[])
 {
 	HANDLE hDevice;
 	int i;
+	int n;
 	int ulen = 0;
 	unsigned char ubuf[64*1024];
-	unsigned char mac[ETH_ALEN] = { 0x , 0x , 0x , 0x , 0x , 0x };
+	//unsigned char mac[ETH_ALEN] = { 0x08 , 0x00 , 0x27 , 0xD8 , 0xFF , 0xB5 };
 	
 	hDevice = CreateFile("\\\\.\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	printf("Handle pointer: %p\n", hDevice);
 	
+	/*
 	if (!DeviceIoControl(hDevice, SIOCSIFADDR, &mac, ETH_ALEN, ubuf, sizeof(ubuf), &ulen, NULL)) {
 		printf("IOCTL mac error\n");
 	}
+	*/
 	
-	ZeroMemory(ubuf, sizeof(ubuf));
-	
-	if (!ReadFile(hDevice, ubuf, 64*1024, &ulen, NULL)) {
-		printf("READ packet error\n");
+	for (n = 0; n < 4; n++) {
+		ZeroMemory(ubuf, sizeof(ubuf));
+		
+		if (!ReadFile(hDevice, ubuf, 64*1024, &ulen, NULL)) {
+			printf("READ packet error\n");
+		}
+		
+		printf("[len=%d]", ulen);
+		for (i = 0; i < 20; i++) {
+			printf(" %02X", ubuf[i]);
+		}
+		printf("\n");
 	}
-	
-	printf("[len=%d]", ulen);
-	for (i = 0; i < 20; i++) {
-		printf(" %02X", ubuf[i]);
-	}
-	printf("\n");
 	
 	CloseHandle(hDevice);
 	
