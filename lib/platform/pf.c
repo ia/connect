@@ -309,15 +309,24 @@ struct user_ctx {
 	nd_ret         status;
 };
 
+/* TODO: fix user irp management arch */
+#define  LEN_DEV         ( 7 * sizeof(wchar_t))
+#define  LEN_IFACE       (38 * sizeof(wchar_t))
+//#define  LEN_IFACE_DEV   (46 * sizeof(wchar_t))
+#define  LEN_IFACE_NAME  (LEN_IFACE + sizeof(wchar_t))
+#define  LEN_IFACE_PATH  (LEN_DEV + LEN_IFACE)
+#define  STR_DEV_LEN     LEN_IFACE
+#define  PACKET_SIZE     64 * 1024
 
 struct dev_ctx {
 	wchar_t  path[LEN_IFACE_PATH];
 	wchar_t  name[LEN_IFACE_NAME];
-	uint8_t  mac[ETH_ALEN];
+	uchar    mac[ETH_ALEN];
 	nd_hndl  hndl;
 	nd_hndl  buffer_pool;
 	nd_hndl  packet_pool;
 	uchar   *packet;
+	int      packet_rq;
 	int      packet_len;
 	nd_ret   status;
 	int      lock_init;  /* lock on init in dev_open              */
@@ -339,17 +348,6 @@ struct module_ctx {
 	nd_hndl        buffer_pool;
 	nd_ev          closew_event;
 };
-
-/* TODO: fix user irp management arch */
-#define  LEN_DEV         ( 7 * sizeof(wchar_t))
-#define  LEN_IFACE       (38 * sizeof(wchar_t))
-//#define  LEN_IFACE_DEV   (46 * sizeof(wchar_t))
-#define  LEN_IFACE_NAME  (LEN_IFACE + sizeof(wchar_t))
-#define  LEN_IFACE_PATH  (LEN_DEV + LEN_IFACE)
-
-#define  STR_DEV_LEN     LEN_IFACE
-
-#define  PACKET_SIZE     64 * 1024
 
 struct user_irp {
 	int irp_type;
@@ -391,7 +389,7 @@ nt_ret   dev_ioctl    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_close    (dev_obj *dobj, irp *i)           ;
 
 /* interface management */
-void     iface_open   (struct dev_ctx *dctx)            ;
+nt_ret   iface_open   (struct dev_ctx *dctx)            ;
 void     iface_close  (struct dev_ctx *dctx)            ;
 
 /* init/exit routine */
@@ -402,6 +400,9 @@ void     exit_ndis    (mod_obj *mobj)                   ;
 void     exit_device  (mod_obj *mobj)                   ;
 void     exit_module  (mod_obj *mobj)                   ;
 nt_ret   init_module  (mod_obj *mobj)                   ;
+
+/* test stub */
+void     init_sending (struct dev_ctx *dev)             ;
 
 /* mainline entry point:
 nt_ret   DriverEntry  (mod_obj *mobj, ustring *regpath) ;
@@ -426,7 +427,7 @@ uchar             *g_packet       = NULL     ;
 size_t             g_packet_size  = 64 * 1024;
 int                g_packet_ready = 0;
 nd_ev              g_closew_event;
-//int                g_iface_ready  = 0;
+int                g_iface_ready  = 0;
 ustring            g_iface_name;
 
 struct user_ctx    g_usrctx;
@@ -516,7 +517,7 @@ void ndis_packet_send(struct dev_ctx *dctx, const uchar *packet, int len)
 	
 	/* TODO: fix interface ready detection */
 	
-	RET_ON_V_VM((!dctx || !(dctx->hndl) || !(dctx->lock_init) || !(dctx->lock_open) || !(dctx->lock_ready) || !(dctx->mac) || !packet, "iface is not ready for sending");
+	RET_ON_V_VM((!dctx || !(dctx->hndl) || !(dctx->lock_init) || !(dctx->lock_open) || !(dctx->lock_ready) || !packet), "iface is not ready for sending");
 	
 	NdisAllocatePacket(&ret, &npacket, dctx->packet_pool);
 	RET_ON_V_VPM((!(IS_ND_OK(ret))), "NdisAllocatePacket", ret);
@@ -569,7 +570,7 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	nd_req ndis_req;
 	ulong pcktype = NDIS_PACKET_TYPE_PROMISCUOUS;
 	//ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL;
-	dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
+	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -812,19 +813,20 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	ustring ifname_path;
 	
 	DBG_IN;
+	printdbg("FileName         == %ws\n", sl->FileObject->FileName.Buffer);
 	
 	dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
-	if (dinit && dinit->lock) {
+	if (dinit && (dinit->lock_init || dinit->lock_open || dinit->lock_ready)) {
 		IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 		DBG_OUT_R(STATUS_DEVICE_BUSY);
 	}
 	
-	if (sl->FileObject->FileName.Length != LEN_IFACE_NAME) || ((sl->FileObject->FileName.Length + g_dev_prefix.Length) != LEN_IFACE_PATH) {
+	if ((sl->FileObject->FileName.Length != LEN_IFACE_NAME) || ((sl->FileObject->FileName.Length + g_dev_prefix.Length) != LEN_IFACE_PATH)) {
 		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
-	dev_ctx dctx = nt_malloc(sizeof(struct dev_ctx));
+	dctx = nt_malloc(sizeof(struct dev_ctx));
 	if (!dctx) {
 		IRP_DONE(i, 0, STATUS_NO_MEMORY);
 		DBG_OUT_R(STATUS_NO_MEMORY);
@@ -852,7 +854,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printm("init adapter name");
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, sl->FileObject->FileName.Buffer);
-	nt_memcpy(dctx->path, ifname_path, LEN_IFACE_PATH);
+	nt_memcpy(dctx->path, ifname_path.Buffer, LEN_IFACE_PATH);
 	
 	r = iface_open(dctx);
 	if (IS_NT_ERR(r)) {
@@ -874,16 +876,19 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("dctx->lock_open  == %d\n" , dctx->lock_open);
 	printdbg("dctx->lock_ready == %d\n" , dctx->lock_ready);
 	
+	ATOM(LOCK(dctx->lock_ready));
+	
 	IRP_DONE(i, 0, NT_OK);
+	init_sending(dctx);
 	DBG_OUT_R(NT_OK);
 }
 
 
 nt_ret dev_read(dev_obj *dobj, irp *i)
 {
-	ulong           len = 0;
+	int             len = 0;
 	io_stack       *sl   = nt_irp_get_stack(i);
-	ulong           rlen = IRP_RBLEN(sl);
+	int             rlen = IRP_RBLEN(sl);
 	void           *rbuf = IRP_ASBUF(i);
 	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
@@ -903,15 +908,23 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 		continue;
 	}
 	
-	//dctx->packet_rq = 1;
+	dctx->packet_rq = 1;
 	
-	len = ((rlen <= dctx->packet_len) ? rlen : dctx->packet_len);
+	len = (((rlen) <= (dctx->packet_len)) ? (rlen) : (dctx->packet_len)); /* work only with /w */
+	/*
+	if (rlen <= dctx->packet_len) {
+		len = rlen;
+	} else {
+		len = dctx->packet_len;
+	}
+	*/
+	
 	nt_memzero(rbuf, rlen);
 	nt_memcpy(rbuf, dctx->packet, len);
 	
 	IRP_DONE(i, len, NT_OK);
 	
-	//dctx->packet_rq = 0;
+	dctx->packet_rq = 0;
 	
 	DBG_OUT_R(NT_OK);
 }
@@ -947,6 +960,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 {
 	io_stack *sl;
 	ulong ctl_code;
+	struct dev_ctx *dctx;
 	
 	/* init associated system buffer */
 	void *ubuf = IRP_ASBUF(i);
@@ -963,7 +977,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 		
 		case IOCTL_HELLO:
 			if ((((struct user_irp *) ubuf)->irp_type) == IRP_IFACE) {
-				iface_open((((struct user_irp *) ubuf)->irp_data), STR_DEV_LEN);
+				//iface_open((((struct user_irp *) ubuf)->irp_data), STR_DEV_LEN);
 				IRP_DONE(i, 0, NT_OK);
 			} else {
 				printm("IOCTL >>");
@@ -983,7 +997,6 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			break;
 		
 		case SIOCSIFADDR:
-			struct dev_ctx *dctx;
 			dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 			
 			/* check device context: must be allocated and locked */
@@ -994,7 +1007,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			}
 			
 			/* check device status - otherwise already in use */
-			if (dctx->lock_ready) {
+			if (!dctx->lock_ready) {
 				IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 				break;
 			}
@@ -1007,8 +1020,8 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			}
 			
 			nt_memcpy(dctx->mac, ubuf, ETH_ALEN);
-			ATOM(LOCK(dctx->lock_ready));
-			init_sending(dctx);
+			//ATOM(LOCK(dctx->lock_ready));
+			//init_sending(dctx);
 			break;
 			
 		default:
@@ -1049,7 +1062,7 @@ void init_sending(struct dev_ctx *dev)
 }
 
 
-nt_ret iface_open(dev_ctx *dctx)
+nt_ret iface_open(struct dev_ctx *dctx)
 {
 	nd_ret ret, err;
 	ustring ifname, ifname_path;
@@ -1094,8 +1107,8 @@ void iface_close(struct dev_ctx *dctx)
 	DBG_IN;
 	
 	if (DEV_NOT_READY(dctx)) {
-		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
-		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+		printm("RC FAIL");
+		DBG_OUT_VP(STATUS_DEVICE_NOT_READY);
 	}
 	
 	printm("closing adapter for network interface");
@@ -1130,7 +1143,7 @@ nt_ret init_ndis(mod_obj *mobj)
 	uint mindex = 0;
 	
 	//This string must match that specified in the registery (under Services) when the protocol was installed
-	nd_str pname   = NDIS_STRING_CONST(PROTONAME);
+	nd_str pname   = NDIS_STRING_CONST("pf"); /* PROTONAME */
 	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
 	
 	DBG_IN;
@@ -1240,7 +1253,7 @@ void exit_ndis(mod_obj *mobj)
 	printm("resetting ndis event");
 	NdisResetEvent(&g_closew_event);
 	
-	iface_close();
+	//iface_close();
 	
 	printm("disabling protocol");
 	NdisDeregisterProtocol(&ret, g_proto_hndl);
