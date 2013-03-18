@@ -42,8 +42,8 @@
 /* ioctl related defines */
 /* TODO: refactoring me */
 #define  SIOCTL_TYPE            40000
-#define  IOCTL_HELLO CTL_CODE   (SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
-#define  SIOCSIFADDR            (SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
+#define  IOCTL_HELLO            CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
+#define  SIOCSIFADDR            CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
 //#define  FILE_DEVICE_ROOTKIT    0x00002a7b
 
 /* proto related constants */
@@ -60,9 +60,14 @@
 #define  IS_NT_ERR(  r)        NT_ERROR  (r)                      /* http://msdn.microsoft.com/en-us/library/windows/hardware/ff565436%28v=vs.85%29.aspx */
 #define  IRP_ASBUF(  i)        (i->AssociatedIrp.SystemBuffer)
 #define  IRP_IBLEN(  s)        (s->Parameters.DeviceIoControl.InputBufferLength)
+#define  IRP_RBLEN(  s)        (s->Parameters.Read.Length)
+#define  IRP_WBLEN(  s)        (s->Parameters.Write.Length)
 #define  IRP_IOCTL(  s)        (s->Parameters.DeviceIoControl.IoControlCode)
 #define  IRP_DONE(  rp, info, ret) \
 		rp->IoStatus.Status = ret; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
+
+#define  DEV_NOT_OPEN(d)       (!d || !(d->lock_init) || !(d->lock_open))
+#define  DEV_NOT_READY(d)      (!d || !(d->lock_init) || !(d->lock_open) || !(d->lock_ready))
 
 /* functions */
 
@@ -306,10 +311,18 @@ struct user_ctx {
 
 
 struct dev_ctx {
-	wchar_t path[LEN_IFACE_PATH];
-	wchar_t name[LEN_IFACE_NAME];
-	uint8_t mac[ETH_ALEN];
-	nd_hndl hndl;
+	wchar_t  path[LEN_IFACE_PATH];
+	wchar_t  name[LEN_IFACE_NAME];
+	uint8_t  mac[ETH_ALEN];
+	nd_hndl  hndl;
+	nd_hndl  buffer_pool;
+	nd_hndl  packet_pool;
+	uchar   *packet;
+	int      packet_len;
+	nd_ret   status;
+	int      lock_init;  /* lock on init in dev_open              */
+	int      lock_open;  /* lock on NdisOpenAdapter in iface_open */
+	int      lock_ready; /* lock on SIOCSIFADDR in dev_ioctl */
 };
 
 
@@ -336,6 +349,8 @@ struct module_ctx {
 
 #define  STR_DEV_LEN     LEN_IFACE
 
+#define  PACKET_SIZE     64 * 1024
+
 struct user_irp {
 	int irp_type;
 	wchar_t irp_data[STR_DEV_LEN];
@@ -348,8 +363,8 @@ struct user_irp {
 int      gettimeofday       (struct timeval *dst);
 
 /* all this code - for this two functions */
-void     ndis_packet_recv   (const uchar *packet, int len);
-void     ndis_packet_send   (const uchar *packet, int len);
+void     ndis_packet_recv   (struct dev_ctx *dctx, const uchar *packet, int len);
+void     ndis_packet_send   (struct dev_ctx *dctx, const uchar *packet, int len);
 
 /* ndis proto callbacks */
 void     ndis_status        (nd_hndl protobind_ctx  , nd_ret      s        , void    *sbuf, uint sbuf_len);
@@ -376,8 +391,8 @@ nt_ret   dev_ioctl    (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_close    (dev_obj *dobj, irp *i)           ;
 
 /* interface management */
-void     iface_open   (wchar_t *iface, int iface_len)   ;
-void     iface_close  (void)                            ;
+void     iface_open   (struct dev_ctx *dctx)            ;
+void     iface_close  (struct dev_ctx *dctx)            ;
 
 /* init/exit routine */
 nt_ret   init_ndis    (mod_obj *mobj)                   ;
@@ -444,7 +459,7 @@ int gettimeofday(struct timeval *tv)
 /*** *** *** mainline functions *** *** ***/
 
 
-void ndis_packet_recv(const uchar *packet, int len)
+void ndis_packet_recv_orig(const uchar *packet, int len)
 {
 	//struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
 	
@@ -468,20 +483,42 @@ void ndis_packet_recv(const uchar *packet, int len)
 }
 
 
-void ndis_packet_send(const uchar *packet, int len)
+void ndis_packet_recv(struct dev_ctx *dctx, const uchar *packet, int len)
 {
-	nd_ret   ret;
-	nd_pack *npacket;
-	void    *pbuf;
-	nd_buf  *nbuf;
+	//struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
+	DBG_IN;
+	
+	nt_memzero(dctx->packet, PACKET_SIZE);
+	memcpy(dctx->packet, packet, len);
+	dctx->packet_len = len;
+	
+	if (len == MTU) {
+		uchar *zero = nt_malloc(MTU);
+		nt_memzero(zero, MTU);
+		if (memcmp(packet, zero, MTU) == 0) {
+			printk("INIT PACKET HIT THE WIRE!!!1\n");
+		}
+		nt_free(zero);
+	}
+	
+	DBG_OUT_V;
+}
+
+
+void ndis_packet_send(struct dev_ctx *dctx, const uchar *packet, int len)
+{
+	nd_ret    ret;
+	nd_pack  *npacket;
+	void     *pbuf;
+	nd_buf   *nbuf;
 	
 	DBG_IN;
 	
 	/* TODO: fix interface ready detection */
 	
-	RET_ON_V_VM((!g_iface_hndl[g_iface_indx] || !packet || !g_iface_ready), "iface is not ready for sending");
+	RET_ON_V_VM((!dctx || !(dctx->hndl) || !(dctx->lock_init) || !(dctx->lock_open) || !(dctx->lock_ready) || !(dctx->mac) || !packet, "iface is not ready for sending");
 	
-	NdisAllocatePacket(&ret, &npacket, g_packet_pool);
+	NdisAllocatePacket(&ret, &npacket, dctx->packet_pool);
 	RET_ON_V_VPM((!(IS_ND_OK(ret))), "NdisAllocatePacket", ret);
 	
 	/* aquire lock, release only when send is complete */
@@ -489,7 +526,7 @@ void ndis_packet_send(const uchar *packet, int len)
 	
 	NdisAllocateMemory(&pbuf, len, 0, g_phymax);
 	memcpy(pbuf, (void *) packet, len);
-	NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, pbuf, len);
+	NdisAllocateBuffer(&ret, &nbuf, dctx->buffer_pool, pbuf, len);
 	if (!(IS_ND_OK(ret))) {
 		nt_splock_unlock(&g_splock, g_irq);
 		DBG_OUT_VPM("NdisAllocateBuffer", ret);
@@ -497,12 +534,12 @@ void ndis_packet_send(const uchar *packet, int len)
 	
 	RSRVD_PCKT_CTX(npacket)->rp = NULL; /* so our OnSendDone() knows this is local */
 	NdisChainBufferAtBack(npacket, nbuf);
-	NdisSend(&ret, g_iface_hndl[g_iface_indx], npacket);
-	if (ret != NDIS_STATUS_PENDING ) {
-		ndis_send(g_iface_hndl[g_iface_indx], npacket, ret);
+	NdisSend(&ret, dctx->hndl, npacket);
+	if (ret != NDIS_STATUS_PENDING) {
+		ndis_send(dctx, npacket, ret);
 	}
 	
-	/* release so we can send next.. */
+	/* release so we can send next ... */
 	nt_splock_unlock(&g_splock, g_irq);
 	DBG_OUT_V;
 }
@@ -532,6 +569,7 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	nd_req ndis_req;
 	ulong pcktype = NDIS_PACKET_TYPE_PROMISCUOUS;
 	//ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL;
+	dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -542,12 +580,12 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	ndis_req.DATA.SET_INFORMATION.InformationBuffer        =  &pcktype                      ;
 	ndis_req.DATA.SET_INFORMATION.InformationBufferLength  =  sizeof(ulong)                 ;
 	
-	NdisRequest(&ret_req, g_iface_hndl[g_iface_indx], &ndis_req);
+	NdisRequest(&ret_req, dctx->hndl, &ndis_req);
 	
-	NdisAllocatePacketPool(&ret, &g_packet_pool, TRANSMIT_PACKETS, sizeof(struct packet_ctx));
+	NdisAllocatePacketPool(&ret, &(dctx->packet_pool), TRANSMIT_PACKETS, sizeof(struct packet_ctx));
 	RET_ON_ERRND_VPM("NdisAllocatePacketPool: error", ret);
 	
-	NdisAllocateBufferPool(&ret, &g_buffer_pool, TRANSMIT_PACKETS);
+	NdisAllocateBufferPool(&ret, &(dctx->buffer_pool), TRANSMIT_PACKETS);
 	RET_ON_ERRND_VPM("NdisAllocateBufferPool: error", ret);
 	
 	DBG_OUT_V;
@@ -628,6 +666,7 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 	ulong               blen;
 	ulong               tx_size = 0;
 	uint                tx_bytes = 0;
+	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -658,11 +697,11 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 					
 					/*this is important here we attach the buffer to the packet*/
 					NdisChainBufferAtFront(npacket, nbuf);
-					NdisTransferData(&(g_usrctx.status), g_iface_hndl[g_iface_indx], mac_ctx, 0, tx_size, npacket, &tx_bytes);
+					NdisTransferData(&(dctx->status), dctx->hndl, mac_ctx, 0, tx_size, npacket, &tx_bytes);
 					
 					if (ret != NDIS_STATUS_PENDING) {
 						/*important to call the complete routine since it's not pending*/
-						ndis_transfer(&g_usrctx, npacket, ret, tx_bytes);
+						ndis_transfer(dctx, npacket, ret, tx_bytes);
 					}
 					
 					DBG_OUT_R(ND_OK);
@@ -701,6 +740,7 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	ulong tbuf_len;
 	void *hdr_tbuf;
 	ulong hdr_tbuf_len;
+	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -715,7 +755,7 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 		if (pbuf) {
 			memcpy(pbuf, hdr_tbuf, hdr_tbuf_len);
 			memcpy(pbuf + hdr_tbuf_len, tbuf, tbuf_len);
-			ndis_packet_recv(pbuf, (hdr_tbuf_len + tbuf_len));
+			ndis_packet_recv(dctx, pbuf, (hdr_tbuf_len + tbuf_len));
 			nt_free(pbuf);
 		}
 		nt_free(tbuf);
@@ -729,8 +769,13 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	
 	NdisReinitializePacket(tx_packet);
 	NdisFreePacket(tx_packet);
+	
+	while (dctx->packet_rq) {
+		continue;
+	}
 	/* packet is gone here */
-	UNLOCK(g_packet_ready);
+	dctx->packet_len = 0;
+	
 	DBG_OUT_V;
 }
 
@@ -770,6 +815,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	
 	dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
 	if (dinit && dinit->lock) {
+		IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 		DBG_OUT_R(STATUS_DEVICE_BUSY);
 	}
 	
@@ -778,10 +824,24 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
-	LOCK(dctx->lock);
-	
 	dev_ctx dctx = nt_malloc(sizeof(struct dev_ctx));
+	if (!dctx) {
+		IRP_DONE(i, 0, STATUS_NO_MEMORY);
+		DBG_OUT_R(STATUS_NO_MEMORY);
+	}
 	nt_memzero(dctx, sizeof(struct dev_ctx));
+	
+	ATOM(LOCK(dctx->lock_init));
+	
+	printm("preparing buffer for packet");
+	dctx->packet = (uchar *) nt_malloc(PACKET_SIZE);
+	if (!(dctx->packet)) {
+		IRP_DONE(i, 0, STATUS_NO_MEMORY);
+		nt_free(dctx);
+		DBG_OUT_R(STATUS_NO_MEMORY);
+	}
+	nt_memzero(dctx->packet, PACKET_SIZE);
+	
 	nt_memcpy(dctx->name, sl->FileObject->FileName.Buffer, LEN_IFACE_PATH);
 	
 	ifname_path.Length = 0;
@@ -794,39 +854,91 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	RtlAppendUnicodeToString(&ifname_path, sl->FileObject->FileName.Buffer);
 	nt_memcpy(dctx->path, ifname_path, LEN_IFACE_PATH);
 	
-	r = iface_open(dctx->path, LEN_IFACE_PATH, dctx->hndl)
-	if (r) {
+	r = iface_open(dctx);
+	if (IS_NT_ERR(r)) {
 		IRP_DONE(i, 0, r);
 		nt_free(dctx);
 		nt_free(ifname_path.Buffer);
 		DBG_OUT_R(r);
-		//DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
+	
+	ATOM(LOCK(dctx->lock_open));
 	
 	sl->FileObject->FsContext = (void *) dctx;
 	
-	printdbg("FileName    == %ws\n", sl->FileObject->FileName.Buffer);
-	printdbg("ifname_path == %ws\n", ifname_path.Buffer);
-	printdbg("dctx->name  == %ws\n", dctx->name);
-	printdbg("dctx->path  == %ws\n", dctx->path);
+	printdbg("FileName         == %ws\n", sl->FileObject->FileName.Buffer);
+	printdbg("ifname_path      == %ws\n", ifname_path.Buffer);
+	printdbg("dctx->name       == %ws\n", dctx->name);
+	printdbg("dctx->path       == %ws\n", dctx->path);
+	printdbg("dctx->lock_init  == %d\n" , dctx->lock_init);
+	printdbg("dctx->lock_open  == %d\n" , dctx->lock_open);
+	printdbg("dctx->lock_ready == %d\n" , dctx->lock_ready);
 	
-	LOCK(dctx->ready);
 	IRP_DONE(i, 0, NT_OK);
-	init_sending();
 	DBG_OUT_R(NT_OK);
 }
 
 
 nt_ret dev_read(dev_obj *dobj, irp *i)
 {
+	ulong           len = 0;
+	io_stack       *sl   = nt_irp_get_stack(i);
+	ulong           rlen = IRP_RBLEN(sl);
+	void           *rbuf = IRP_ASBUF(i);
+	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	
 	DBG_IN;
+	
+	if (!rlen) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
+	if (DEV_NOT_READY(dctx)) {
+		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
+		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
+	while (!(dctx->packet_len)) {
+		continue;
+	}
+	
+	//dctx->packet_rq = 1;
+	
+	len = ((rlen <= dctx->packet_len) ? rlen : dctx->packet_len);
+	nt_memzero(rbuf, rlen);
+	nt_memcpy(rbuf, dctx->packet, len);
+	
+	IRP_DONE(i, len, NT_OK);
+	
+	//dctx->packet_rq = 0;
+	
 	DBG_OUT_R(NT_OK);
 }
 
 
 nt_ret dev_write(dev_obj *dobj, irp *i)
 {
+	io_stack       *sl   = nt_irp_get_stack(i);
+	ulong           wlen = IRP_WBLEN(sl);
+	void           *wbuf = IRP_ASBUF(i);
+	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	
 	DBG_IN;
+	
+	if (!wlen) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
+	if (DEV_NOT_READY(dctx)) {
+		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
+		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
+	ndis_packet_send(dctx, wbuf, wlen);
+	
+	IRP_DONE(i, 0, NT_OK);
 	DBG_OUT_R(NT_OK);
 }
 
@@ -871,31 +983,36 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			break;
 		
 		case SIOCSIFADDR:
-			struct dev_ctx *dinit, *dctx;
-			dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
+			struct dev_ctx *dctx;
+			dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 			
 			/* check device context: must be allocated and locked */
-			if (!dinit || !(dinit->lock)) {
+			if (!dctx || !(dctx->lock_init) || !(dctx->lock_open)) {
 				IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
+				break;
 				//DBG_OUT_R(STATUS_DEVICE_NOT_READY);
 			}
 			
 			/* check device status - otherwise already in use */
-			if (dinit->ready) {
-				IRP_DONE(i, 0, STATUS_DEVICE_BUSY)
+			if (dctx->lock_ready) {
+				IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
+				break;
 			}
 			
 			/* check len of MAC in input buffer */
 			if (IRP_IBLEN(sl) != ETH_ALEN) {
 				IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+				break;
 				//DBG_OUT_R(STATUS_INVALID_PARAMETER);
 			}
 			
-			nt_memcpy(dinit->mac, ubuf, ETH_ALEN);
-			LOCK(dinit->ready);
+			nt_memcpy(dctx->mac, ubuf, ETH_ALEN);
+			ATOM(LOCK(dctx->lock_ready));
+			init_sending(dctx);
 			break;
-		
+			
 		default:
+			IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 			break;
 		
 	}
@@ -906,8 +1023,11 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
+	io_stack *sl = nt_irp_get_stack(i);
+	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	
 	DBG_IN;
-	iface_close();
+	iface_close(dctx);
 	DBG_OUT_R(NT_OK);
 }
 
@@ -915,21 +1035,21 @@ nt_ret dev_close(dev_obj *dobj, irp *i)
 /*** *** *** interface management *** *** ***/
 
 
-void init_sending(void)
+void init_sending(struct dev_ctx *dev)
 {
 	uchar *pckt = nt_malloc(MTU);
 	
 	DBG_IN;
 	
 	nt_memzero(pckt, MTU);
-	ndis_packet_send(pckt, MTU);
+	ndis_packet_send(dev, pckt, MTU);
 	nt_free(pckt);
 	
 	DBG_OUT_V;
 }
 
 
-nt_ret iface_open(wchar_t *iface_name, int iface_len, nd_hndl hndl)
+nt_ret iface_open(dev_ctx *dctx)
 {
 	nd_ret ret, err;
 	ustring ifname, ifname_path;
@@ -938,20 +1058,21 @@ nt_ret iface_open(wchar_t *iface_name, int iface_len, nd_hndl hndl)
 	
 	DBG_IN;
 	
-	printdbg("input: iface_name == %ws\n", iface_name);
+	printdbg("input: iface_name == %ws\n", dctx->path);
 	
 	ifname_path.Length = 0;
-	ifname_path.MaximumLength = (ushort) (iface_len + g_dev_prefix.Length + sizeof(UNICODE_NULL));
+	ifname_path.MaximumLength = (ushort) (LEN_IFACE_PATH + g_dev_prefix.Length + sizeof(UNICODE_NULL));
 	ifname_path.Buffer = nt_malloc(ifname_path.MaximumLength);
 	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
 	
+	/* TODO: verify path management */
 	printm("init local adapter name");
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
-	RtlAppendUnicodeToString(&ifname_path, iface_name);
+	RtlAppendUnicodeToString(&ifname_path, dctx->path);
 	printdbg("output: ifname_path == %ws\n", ifname_path.Buffer);
 	
 	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, &hndl, &mindex, &marray, 1, g_proto_hndl, &g_usrctx, &ifname_path, 0, NULL);
+	NdisOpenAdapter(&ret, &err, dctx->hndl, &mindex, &marray, 1, g_proto_hndl, dctx, &ifname_path, 0, NULL);
 	if ((!(IS_ND_OK(ret))) && (!(IS_NT_OK(ret)))) {
 		printmd("NdisOpenAdapter: error", ret);
 		if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
@@ -960,26 +1081,39 @@ nt_ret iface_open(wchar_t *iface_name, int iface_len, nd_hndl hndl)
 		DBG_OUT_R(ret);
 	}
 	
-	ndis_iface_open(&g_usrctx, ret, ND_OK);
+	ndis_iface_open(dctx, ret, ND_OK);
 	
 	DBG_OUT_R(NT_OK);
 }
 
 
-void iface_close()
+void iface_close(struct dev_ctx *dctx)
 {
 	nd_ret ret;
 	
 	DBG_IN;
 	
+	if (DEV_NOT_READY(dctx)) {
+		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
+		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
 	printm("closing adapter for network interface");
-	NdisCloseAdapter(&ret, g_iface_hndl[g_iface_indx]);
+	NdisCloseAdapter(&ret, dctx->hndl);
 	if (ret == NDIS_STATUS_PENDING) {
 		printm("waiting ndis event");
 		NdisWaitEvent(&g_closew_event, 0);
 	}
 	
-	//UNLOCK(g_iface_ready);
+	dctx->lock_init =  0;
+	dctx->lock_open =  0;
+	dctx->lock_ready = 0;
+	
+	NdisFreeBufferPool(dctx->buffer_pool);
+	NdisFreePacketPool(dctx->packet_pool);
+	
+	nt_free(dctx->packet);
+	nt_free(dctx);
 	
 	DBG_OUT;
 }
@@ -1033,12 +1167,12 @@ nt_ret init_ndis(mod_obj *mobj)
 	printm("register proto");
 	NdisRegisterProtocol(&ret, &g_proto_hndl, &proto, sizeof(nd_proto));
 	RET_ON_ERRND_RPM("NdisRegisterProtocol: error", ret);
-	
+	/*
 	printm("preparing buffer for packet");
 	g_packet = (uchar *) nt_malloc(g_packet_size);
 	RET_ON_NULL(g_packet);
 	nt_memzero(g_packet, g_packet_size);
-	
+	*/
 	nt_splock_init(&g_splock);
 	
 	DBG_OUT_R(NT_OK);

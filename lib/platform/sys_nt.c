@@ -736,14 +736,17 @@ ssize_t cnct_packet_recv (socket_t sd, unsigned char *packet, size_t len)
 #include <stdlib.h>
 #include <string.h>
 
-#define SIOCTL_TYPE 40000
-#define IOCTL_HELLO CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define  SIOCTL_TYPE            40000
+#define  IOCTL_HELLO            CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
+#define  SIOCSIFADDR            CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
 
 #define STR_DEV_LEN 46*2
 #define STR_DEV_LEN 38*sizeof(WCHAR)
 
 #define LEN_IFACE_DEV 46*sizeof(WCHAR)
 #define LEN_IFACE     38*sizeof(WCHAR)
+
+#define  ETH_ALEN           6         /* Octets in one ethernet addr	 */
 
 /*
  * TODO:
@@ -764,7 +767,8 @@ struct user_irp {
 	wchar_t irp_data[STR_DEV_LEN];
 };
 
-int __cdecl main(int argc, char* argv[])
+#if 0
+int __cdecl main_orig(int argc, char* argv[])
 {
 	HANDLE hDevice;
 	DWORD NombreByte;
@@ -796,6 +800,39 @@ int __cdecl main(int argc, char* argv[])
 	DeviceIoControl(hDevice, IOCTL_HELLO, &uirp, sizeof(struct user_irp), out, sizeof(out), &NombreByte, NULL);
 
 	CloseHandle(hDevice); // Close the handle: We should observe the function CloseFunction is called
+	return 0;
+}
+#endif
+
+int __cdecl main(int argc, char* argv[])
+{
+	HANDLE hDevice;
+	int i;
+	int ulen = 0;
+	unsigned char ubuf[64*1024];
+	unsigned char mac[ETH_ALEN] = { 0x , 0x , 0x , 0x , 0x , 0x };
+	
+	hDevice = CreateFile("\\\\.\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	printf("Handle pointer: %p\n", hDevice);
+	
+	if (!DeviceIoControl(hDevice, SIOCSIFADDR, &mac, ETH_ALEN, ubuf, sizeof(ubuf), &ulen, NULL)) {
+		printf("IOCTL mac error\n");
+	}
+	
+	ZeroMemory(ubuf, sizeof(ubuf));
+	
+	if (!ReadFile(hDevice, ubuf, 64*1024, &ulen, NULL)) {
+		printf("READ packet error\n");
+	}
+	
+	printf("[len=%d]", ulen);
+	for (i = 0; i < 20; i++) {
+		printf(" %02X", ubuf[i]);
+	}
+	printf("\n");
+	
+	CloseHandle(hDevice);
+	
 	return 0;
 }
 
