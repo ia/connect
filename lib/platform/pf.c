@@ -314,13 +314,18 @@ struct user_ctx {
 #define  LEN_IFACE       (38 * sizeof(wchar_t))
 //#define  LEN_IFACE_DEV   (46 * sizeof(wchar_t))
 #define  LEN_IFACE_NAME  (LEN_IFACE + sizeof(wchar_t))
-#define  LEN_IFACE_PATH  (LEN_DEV + LEN_IFACE)
+#define  LEN_IFACE_PATH  (LEN_DEV + LEN_IFACE_NAME)
 #define  STR_DEV_LEN     LEN_IFACE
 #define  PACKET_SIZE     64 * 1024
-
+/*
+\\Device\{...}
+\\Device\pf\{...}
+\{...}
+*/
 struct dev_ctx {
 	wchar_t  path[LEN_IFACE_PATH];
 	wchar_t  name[LEN_IFACE_NAME];
+	
 	uchar    mac[ETH_ALEN];
 	nd_hndl  hndl;
 	nd_hndl  buffer_pool;
@@ -413,7 +418,7 @@ nt_ret   DriverEntry  (mod_obj *mobj, ustring *regpath) ;
 
 /* TODO: remove unused */
 
-nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device\\");
+nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device");
 
 dev_obj           *g_device;
 const wchar_t      g_devpath[] = L"\\Device\\myDevice1";     // Define the device
@@ -813,7 +818,9 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	ustring ifname_path;
 	
 	DBG_IN;
-	printdbg("FileName         == %ws\n", sl->FileObject->FileName.Buffer);
+	printdbg("FileName            == %ws\n", sl->FileObject->FileName.Buffer);
+	printdbg("sl->FObj->FName.L   == %d\n", sl->FileObject->FileName.Length);
+	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
 	
 	dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
 	if (dinit && (dinit->lock_init || dinit->lock_open || dinit->lock_ready)) {
@@ -833,7 +840,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	}
 	nt_memzero(dctx, sizeof(struct dev_ctx));
 	
-	ATOM(LOCK(dctx->lock_init));
+	LOCK(dctx->lock_init);
 	
 	printm("preparing buffer for packet");
 	dctx->packet = (uchar *) nt_malloc(PACKET_SIZE);
@@ -844,7 +851,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	}
 	nt_memzero(dctx->packet, PACKET_SIZE);
 	
-	nt_memcpy(dctx->name, sl->FileObject->FileName.Buffer, LEN_IFACE_PATH);
+	nt_memcpy(dctx->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME);
 	
 	ifname_path.Length = 0;
 	ifname_path.MaximumLength = (ushort) (LEN_IFACE_PATH + sizeof(UNICODE_NULL));
@@ -864,7 +871,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		DBG_OUT_R(r);
 	}
 	
-	ATOM(LOCK(dctx->lock_open));
+	LOCK(dctx->lock_open);
 	
 	sl->FileObject->FsContext = (void *) dctx;
 	
@@ -876,7 +883,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("dctx->lock_open  == %d\n" , dctx->lock_open);
 	printdbg("dctx->lock_ready == %d\n" , dctx->lock_ready);
 	
-	ATOM(LOCK(dctx->lock_ready));
+	LOCK(dctx->lock_ready);
 	
 	IRP_DONE(i, 0, NT_OK);
 	init_sending(dctx);
@@ -1074,13 +1081,14 @@ nt_ret iface_open(struct dev_ctx *dctx)
 	printdbg("input: iface_name == %ws\n", dctx->path);
 	
 	ifname_path.Length = 0;
-	ifname_path.MaximumLength = (ushort) (LEN_IFACE_PATH + g_dev_prefix.Length + sizeof(UNICODE_NULL));
+	ifname_path.MaximumLength = (ushort) (LEN_IFACE_PATH + sizeof(UNICODE_NULL));
 	ifname_path.Buffer = nt_malloc(ifname_path.MaximumLength);
 	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
 	
 	/* TODO: verify path management */
+	
 	printm("init local adapter name");
-	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
+	//RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, dctx->path);
 	printdbg("output: ifname_path == %ws\n", ifname_path.Buffer);
 	
