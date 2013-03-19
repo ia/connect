@@ -575,7 +575,8 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	nd_req ndis_req;
 	ulong pcktype = NDIS_PACKET_TYPE_PROMISCUOUS;
 	//ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL;
-	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
+	struct dev_ctx *dctx;
+	dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -672,7 +673,9 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 	ulong               blen;
 	ulong               tx_size = 0;
 	uint                tx_bytes = 0;
-	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
+	struct dev_ctx     *dctx;
+
+	dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -746,7 +749,9 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	ulong tbuf_len;
 	void *hdr_tbuf;
 	ulong hdr_tbuf_len;
-	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
+	struct dev_ctx *dctx;
+	
+	dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -821,18 +826,18 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("FileName            == %ws\n", sl->FileObject->FileName.Buffer);
 	printdbg("sl->FObj->FName.L   == %d\n", sl->FileObject->FileName.Length);
 	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
-	
+		
 	dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
 	if (dinit && (dinit->lock_init || dinit->lock_open || dinit->lock_ready)) {
 		IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 		DBG_OUT_R(STATUS_DEVICE_BUSY);
 	}
-	
+		
 	if ((sl->FileObject->FileName.Length != LEN_IFACE_NAME) || ((sl->FileObject->FileName.Length + g_dev_prefix.Length) != LEN_IFACE_PATH)) {
 		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
-	
+		
 	dctx = nt_malloc(sizeof(struct dev_ctx));
 	if (!dctx) {
 		IRP_DONE(i, 0, STATUS_NO_MEMORY);
@@ -862,7 +867,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, sl->FileObject->FileName.Buffer);
 	nt_memcpy(dctx->path, ifname_path.Buffer, LEN_IFACE_PATH);
-	
+
 	r = iface_open(dctx);
 	if (IS_NT_ERR(r)) {
 		IRP_DONE(i, 0, r);
@@ -870,7 +875,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		nt_free(ifname_path.Buffer);
 		DBG_OUT_R(r);
 	}
-	
+		
 	LOCK(dctx->lock_open);
 	
 	sl->FileObject->FsContext = (void *) dctx;
@@ -897,7 +902,9 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 	io_stack       *sl   = nt_irp_get_stack(i);
 	int             rlen = IRP_RBLEN(sl);
 	void           *rbuf = IRP_ASBUF(i);
-	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	struct dev_ctx *dctx;
+
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
 	DBG_IN;
 	
@@ -942,7 +949,8 @@ nt_ret dev_write(dev_obj *dobj, irp *i)
 	io_stack       *sl   = nt_irp_get_stack(i);
 	ulong           wlen = IRP_WBLEN(sl);
 	void           *wbuf = IRP_ASBUF(i);
-	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	struct dev_ctx *dctx;
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
 	DBG_IN;
 	
@@ -1044,7 +1052,8 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
 	io_stack *sl = nt_irp_get_stack(i);
-	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	struct dev_ctx *dctx;
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
 	DBG_IN;
 	iface_close(dctx);
@@ -1093,7 +1102,7 @@ nt_ret iface_open(struct dev_ctx *dctx)
 	printdbg("output: ifname_path == %ws\n", ifname_path.Buffer);
 	
 	printm("opening adapter");
-	NdisOpenAdapter(&ret, &err, dctx->hndl, &mindex, &marray, 1, g_proto_hndl, dctx, &ifname_path, 0, NULL);
+	NdisOpenAdapter(&ret, &err, &(dctx->hndl), &mindex, &marray, 1, g_proto_hndl, (nd_hndl)dctx, &ifname_path, 0, NULL);
 	if ((!(IS_ND_OK(ret))) && (!(IS_NT_OK(ret)))) {
 		printmd("NdisOpenAdapter: error", ret);
 		if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
@@ -1101,6 +1110,8 @@ nt_ret iface_open(struct dev_ctx *dctx)
 		}
 		DBG_OUT_R(ret);
 	}
+	
+	//return NT_ERR; <- good here
 	
 	ndis_iface_open(dctx, ret, ND_OK);
 	
