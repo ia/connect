@@ -816,6 +816,11 @@ int __cdecl main(int argc, char* argv[])
 	hDevice = CreateFile("\\\\.\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	printf("Handle pointer: %p\n", hDevice);
 	
+	if (INVALID_HANDLE_VALUE == hDevice) {
+		printf("CREAT file error\n");
+		return 1;
+	}
+	
 	/*
 	if (!DeviceIoControl(hDevice, SIOCSIFADDR, &mac, ETH_ALEN, ubuf, sizeof(ubuf), &ulen, NULL)) {
 		printf("IOCTL mac error\n");
@@ -827,6 +832,7 @@ int __cdecl main(int argc, char* argv[])
 		
 		if (!ReadFile(hDevice, ubuf, 64*1024, &ulen, NULL)) {
 			printf("READ packet error\n");
+			return 2;
 		}
 		
 		printf("[len=%d]", ulen);
