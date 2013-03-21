@@ -39,3 +39,10 @@ List of network interfaces:
 http://drp.su/ru/driver_dev/03_01-8.htm
 http://mcdermottcybersecurity.com/articles/64-bit-device-driver-development
 
+dbg:
+http://www.debuginfo.com/articles/easywindbg.html
+http://fuzzypatterns.blogspot.ru/2009/05/configuring-windbg-to-use-web-server-to.html
+http://stackoverflow.com/questions/6896830/how-to-find-line-numbers-corresponding-to-offsets-in-stack-trace-using-windbg
+http://www.microsoft.com/msj/0298/hood0298.aspx
+http://www.sysads.co.uk/2012/05/installing-and-configuring-windbg-windows-debug-tools%E2%80%8F/
+
