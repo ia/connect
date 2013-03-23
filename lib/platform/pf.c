@@ -423,6 +423,11 @@ nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device");
 dev_obj           *g_device;
 const wchar_t      g_devpath[] = L"\\Device\\myDevice1";     // Define the device
 const wchar_t      g_devlink[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
+/*
+const wchar_t      g_devpath2[] = L"\\Device\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}";     // Define the device
+const wchar_t      g_devlink2[] = L"\\DosDevices\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}"; // Symlink for the device
+*/
+/*
 nd_hndl            g_iface_hndl[8];
 int                g_iface_indx = 0;
 nd_hndl            g_proto_hndl;
@@ -437,8 +442,10 @@ ustring            g_iface_name;
 
 struct user_ctx    g_usrctx;
 struct module_ctx  g_modctx;
-struct packet_ctx  g_pckctx;
-
+*/
+//struct packet_ctx  g_pckctx;
+nd_hndl            g_proto_hndl;
+nd_ev              g_closew_event;
 spin_lock          g_splock;
 irq                g_irq;
 nd_phyaddr         g_phymax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
@@ -463,30 +470,6 @@ int gettimeofday(struct timeval *tv)
 
 
 /*** *** *** mainline functions *** *** ***/
-
-
-void ndis_packet_recv_orig(const uchar *packet, int len)
-{
-	//struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
-	
-	DBG_IN;
-	
-	UNLOCK(g_packet_ready);
-	nt_memzero(g_packet, g_packet_size);
-	memcpy(g_packet, packet, len);
-	g_packet_ready = len;
-	
-	if (len == MTU) {
-		uchar *zero = nt_malloc(MTU);
-		nt_memzero(zero, MTU);
-		if (memcmp(packet, zero, MTU) == 0) {
-			printk("INIT PACKET HIT THE WIRE!!!1\n");
-		}
-		nt_free(zero);
-	}
-	
-	DBG_OUT_V;
-}
 
 
 void ndis_packet_recv(struct dev_ctx *dctx, const uchar *packet, int len)
@@ -692,7 +675,7 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 	if (mbuf) {
 		nt_memzero(mbuf, (MTU - ETH_HLEN));
 		
-		NdisAllocatePacket(&ret, &npacket, g_packet_pool);
+		NdisAllocatePacket(&ret, &npacket, dctx->packet_pool);
 		if (NDIS_STATUS_SUCCESS == ret) {
 			RSRVD_PCKT_CTX(npacket)->phdr_buf = nt_malloc(ETH_HLEN);
 			if (RSRVD_PCKT_CTX(npacket)->phdr_buf) {
@@ -700,7 +683,7 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 				memcpy(RSRVD_PCKT_CTX(npacket)->phdr_buf, (uchar *) hdr_buf, ETH_HLEN);
 				RSRVD_PCKT_CTX(npacket)->phdr_buf_len = ETH_HLEN;
 				
-				NdisAllocateBuffer(&ret, &nbuf, g_buffer_pool, mbuf, (MTU - ETH_HLEN));
+				NdisAllocateBuffer(&ret, &nbuf, dctx->buffer_pool, mbuf, (MTU - ETH_HLEN));
 				if (NDIS_STATUS_SUCCESS == ret) {
 					RSRVD_PCKT_CTX(npacket)->pbuf = mbuf;
 					
@@ -826,7 +809,13 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("FileName            == %ws\n", sl->FileObject->FileName.Buffer);
 	printdbg("sl->FObj->FName.L   == %d\n", sl->FileObject->FileName.Length);
 	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
-		
+	
+	/* legacy code for open global device correctly */
+	if (sl->FileObject->FileName.Length == 0 && !(sl->FileObject->FileName.Buffer)) {
+		IRP_DONE(i, 0, NT_OK);
+		DBG_OUT_R(NT_OK);
+	}
+	
 	dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
 	if (dinit && (dinit->lock_init || dinit->lock_open || dinit->lock_ready)) {
 		IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
@@ -899,23 +888,44 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 nt_ret dev_read(dev_obj *dobj, irp *i)
 {
 	int             len = 0;
-	io_stack       *sl   = nt_irp_get_stack(i);
-	int             rlen = IRP_RBLEN(sl);
-	void           *rbuf = IRP_ASBUF(i);
+	io_stack       *sl;
+	ulong           rlen;
+	uchar          *rbuf = NULL;
 	struct dev_ctx *dctx;
-
-	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
 	DBG_IN;
 	
-	if (!rlen) {
+	sl = nt_irp_get_stack(i);
+	if (!sl) {
 		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	if (DEV_NOT_READY(dctx)) {
 		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
 		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
+	if (i->MdlAddress) {
+		printm("direct_IO");
+		if (!(rbuf = MmGetSystemAddressForMdlSafe(i->MdlAddress, NormalPagePriority))) {
+			if (i->UserBuffer) {
+				printm("!mdl; user_buffer");
+				rbuf = i->UserBuffer;
+			}
+		}
+	}
+	
+	if (!rbuf) {
+		printm("buffered_IO");
+		rbuf = (uchar *) IRP_ASBUF(i);
+	}
+	
+	rlen = IRP_RBLEN(sl);
+	if ((!rlen) || (!rbuf)) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
 	while (!(dctx->packet_len)) {
@@ -932,6 +942,18 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 		len = dctx->packet_len;
 	}
 	*/
+	
+	printdbg("rlen = %X ( %d )", rlen, rlen);
+	printdbg("len = %X ( %d )", len, len);
+	
+	DbgPrint("rbuf 0 = %02X", rbuf[0]);
+	DbgPrint("rbuf 1 = %02X", rbuf[1]);
+	DbgPrint("rbuf 2 = %02X", rbuf[2]);
+	DbgPrint("rbuf 3 = %02X", rbuf[3]);
+	
+	//DbgPrint("rbuf[1] = %d", (int) rbuf[1]);
+	//DbgPrint("rbuf[2] = %d", (int) rbuf[2]);
+	//DbgPrint("rbuf[3] = %d", (int) rbuf[3]);
 	
 	nt_memzero(rbuf, rlen);
 	nt_memcpy(rbuf, dctx->packet, len);
@@ -978,7 +1000,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 	struct dev_ctx *dctx;
 	
 	/* init associated system buffer */
-	void *ubuf = IRP_ASBUF(i);
+	uchar *ubuf = (uchar *)IRP_ASBUF(i);
 	
 	DBG_IN;
 	
@@ -991,6 +1013,21 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 	switch (ctl_code) {
 		
 		case IOCTL_HELLO:
+			printm("IOCTL >>");
+			if (IRP_IBLEN(sl) && ubuf) {
+				printm("IOCTL: NT_OK");
+				printdbg("ubuf[0] = %02X", ubuf[0]);
+				printdbg("ubuf[1] = %02X", ubuf[1]);
+				printdbg("ubuf[2] = %02X", ubuf[2]);
+				printdbg("ubuf[3] = %02X", ubuf[3]);
+				IRP_DONE(i, 0, NT_OK);
+			} else {
+				printm("IOCTL: NT_ERR");
+				IRP_DONE(i, 0, NT_ERR);
+			}
+			printm("IOCTL <<");
+			break;
+#if 0
 			if ((((struct user_irp *) ubuf)->irp_type) == IRP_IFACE) {
 				//iface_open((((struct user_irp *) ubuf)->irp_data), STR_DEV_LEN);
 				IRP_DONE(i, 0, NT_OK);
@@ -1010,7 +1047,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 				printm("IOCTL <<");
 			}
 			break;
-		
+#endif
 		case SIOCSIFADDR:
 			dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 			
@@ -1067,10 +1104,15 @@ nt_ret dev_close(dev_obj *dobj, irp *i)
 void init_sending(struct dev_ctx *dev)
 {
 	uchar *pckt = nt_malloc(MTU);
-	
+	int i = 0; char c = 0;
 	DBG_IN;
 	
 	nt_memzero(pckt, MTU);
+	for (i = 6; i < MTU; i++, c++) {
+		pckt[i] = c;
+	}
+	
+	memset(pckt, 0xFF, 6);
 	ndis_packet_send(dev, pckt, MTU);
 	nt_free(pckt);
 	
@@ -1230,6 +1272,11 @@ nt_ret init_device(mod_obj *mobj)
 	
 	printm("setting O_DIRECT for created device");
 	g_device->Flags |= DO_DIRECT_IO;
+	
+	/*
+	printm("setting O_BUFFER for created device");
+	g_device->Flags |= DO_BUFFERED_IO;
+	*/
 	
 	printm("creating symlink for device");
 	ret = nt_creat_link(&devname_link, &devname_path);
