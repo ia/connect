@@ -449,7 +449,8 @@ nd_ev              g_closew_event;
 spin_lock          g_splock;
 irq                g_irq;
 nd_phyaddr         g_phymax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
-
+#define LIST_MAX 8
+struct dev_ctx    *g_dev_list[LIST_MAX];
 
 /*** *** *** helper functions *** *** ***/
 
@@ -800,12 +801,19 @@ void ndis_unload(void)
 
 nt_ret dev_open(dev_obj *dobj, irp *i)
 {
+	int n = 0;
 	nt_ret r;
 	io_stack *sl = nt_irp_get_stack(i);
 	struct dev_ctx *dinit, *dctx;
 	ustring ifname_path;
 	
 	DBG_IN;
+	
+	if (!sl) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
 	printdbg("FileName            == %ws\n", sl->FileObject->FileName.Buffer);
 	printdbg("sl->FObj->FName.L   == %d\n", sl->FileObject->FileName.Length);
 	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
@@ -814,6 +822,32 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	if (sl->FileObject->FileName.Length == 0 && !(sl->FileObject->FileName.Buffer)) {
 		IRP_DONE(i, 0, NT_OK);
 		DBG_OUT_R(NT_OK);
+	}
+	
+	for (n = 0; n < LIST_MAX; n++) {
+		if (g_dev_list[n]) {
+			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
+			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
+			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
+			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
+			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
+			if (memcmp(g_dev_list[n]->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME) == 0) {
+				IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
+				DBG_OUT_R(STATUS_DEVICE_BUSY);
+				//g_dev_list[n] = (struct dev_ctx *)(sl->FileObject->FsContext);
+/*
+				g_dev_list[n]->instance++;
+				sl->FileObject->FsContext = (void *) g_dev_list[n];
+				printm("INSTANCE: using EXISTED");
+				printm("INSTANCE: using EXISTED");
+				printm("INSTANCE: using EXISTED");
+				printm("INSTANCE: using EXISTED");
+				printm("INSTANCE: using EXISTED");
+				IRP_DONE(i, 0, NT_OK);
+				DBG_OUT_R(NT_OK);
+*/
+			}
+		}
 	}
 	
 	dinit = (struct dev_ctx *)(sl->FileObject->FsContext);
@@ -879,6 +913,12 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	
 	LOCK(dctx->lock_ready);
 	
+	for (n = 0; n < LIST_MAX; n++) {
+		if (!(g_dev_list[n])) {
+			g_dev_list[n] = dctx;
+		}
+	}
+	
 	IRP_DONE(i, 0, NT_OK);
 	init_sending(dctx);
 	DBG_OUT_R(NT_OK);
@@ -943,6 +983,7 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 	}
 	*/
 	
+	/*
 	printdbg("rlen = %X ( %d )", rlen, rlen);
 	printdbg("len = %X ( %d )", len, len);
 	
@@ -950,10 +991,7 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 	DbgPrint("rbuf 1 = %02X", rbuf[1]);
 	DbgPrint("rbuf 2 = %02X", rbuf[2]);
 	DbgPrint("rbuf 3 = %02X", rbuf[3]);
-	
-	//DbgPrint("rbuf[1] = %d", (int) rbuf[1]);
-	//DbgPrint("rbuf[2] = %d", (int) rbuf[2]);
-	//DbgPrint("rbuf[3] = %d", (int) rbuf[3]);
+	*/
 	
 	nt_memzero(rbuf, rlen);
 	nt_memcpy(rbuf, dctx->packet, len);
@@ -1088,11 +1126,20 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
+	int n = 0;
 	io_stack *sl = nt_irp_get_stack(i);
 	struct dev_ctx *dctx;
 	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
 	DBG_IN;
+	for (n = 0; n < LIST_MAX; n++) {
+		if (g_dev_list[n]) {
+			if (memcmp(g_dev_list[n]->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME) == 0) {
+				g_dev_list[n] = NULL;
+			}
+		}
+	}
+	
 	iface_close(dctx);
 	DBG_OUT_R(NT_OK);
 }
@@ -1179,15 +1226,18 @@ void iface_close(struct dev_ctx *dctx)
 		NdisWaitEvent(&g_closew_event, 0);
 	}
 	
-	dctx->lock_init =  0;
-	dctx->lock_open =  0;
+	dctx->lock_init  = 0;
+	dctx->lock_open  = 0;
 	dctx->lock_ready = 0;
 	
 	NdisFreeBufferPool(dctx->buffer_pool);
 	NdisFreePacketPool(dctx->packet_pool);
 	
 	nt_free(dctx->packet);
+	/* TODO: verify me */
+	dctx->packet = NULL;
 	nt_free(dctx);
+	dctx = NULL;
 	
 	DBG_OUT;
 }
@@ -1255,6 +1305,7 @@ nt_ret init_ndis(mod_obj *mobj)
 
 nt_ret init_device(mod_obj *mobj)
 {
+	int i = 0;
 	nt_ret   ret;
 	ustring  devname_path;
 	ustring  devname_link;
@@ -1288,6 +1339,10 @@ nt_ret init_device(mod_obj *mobj)
 	mobj->MajorFunction[IRP_MJ_WRITE]          = dev_write ;
 	mobj->MajorFunction[IRP_MJ_DEVICE_CONTROL] = dev_ioctl ;
 	mobj->MajorFunction[IRP_MJ_CLOSE]          = dev_close ;
+	
+	for (i = 0; i < LIST_MAX; i++) {
+		g_dev_list[i] = NULL;
+	}
 	
 	DBG_OUT_R(NT_OK);
 }
