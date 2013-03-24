@@ -46,3 +46,28 @@ http://stackoverflow.com/questions/6896830/how-to-find-line-numbers-correspondin
 http://www.microsoft.com/msj/0298/hood0298.aspx
 http://www.sysads.co.uk/2012/05/installing-and-configuring-windbg-windows-debug-tools%E2%80%8F/
 
+http://technet.microsoft.com/en-us/library/dd919238%28v=ws.10%29.aspx#bkmk_signstep4
+cert:
+
+start->mmc.exe
+ctrl+M: certificates add>
+computer->local
+
+start->x86 Free Build Environment as admin:
+makecert -r -n "CN=ConnectSoftware" -ss ConnectCertStore -sr LocalMachine
+copy CertStore; paste TrustedRoot
+copy CertStore; paste TrustedPublishers
+
+inf2cat /driver:C:\Users\ia\Devel\kernel\ng_2\ /os:7_x64
+SignTool sign /s ConnectCertStore /n ConnectSoftware /t http://timestamp.verisign.com/scripts/timestamp.dll C:\Users\ia\Devel\kernel\ng_2\pf.cat
+
+http://msdn.microsoft.com/en-us/library/windows/hardware/ff553467%28v=vs.85%29.aspx
+system file driver signing:
+SignTool sign /v /s ConnectCertStore /n ConnectSoftware /t http://timestamp.verisign.com/scripts/timstamp.dll C:\Users\ia\Devel\kernel\ng_2\pf.sys
+
+http://technet.microsoft.com/ru-ru/library/cc732061%28v=ws.10%29.aspx
+import:
+export cert file from mmc.exe
+certmgr.exe -add MyCert.cer -s -r localMachine trustedpublisher
+certmgr.exe -add MyCert.cer -s -r localMachine root
+
