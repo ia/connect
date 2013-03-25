@@ -1,4 +1,8 @@
 
+#if defined(KERNEL)
+
+/* --------------------  kernel space provider  ----------------- */
+
 /*** *** *** pragmas *** *** ***/
 
 #pragma message("SYS_NT: kernel space")
@@ -1451,4 +1455,130 @@ nt_ret DriverEntry(mod_obj *mobj, ustring *regpath)
 	DBG_OUT_R(init_module(mobj));
 }
 
+#else
+
+/* --------------------  user space library calls  ------------------- */
+
+#pragma message("SYS_NT: user space")
+
+#include <stdio.h>
+#include <windows.h>
+#include <winioctl.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define  SIOCTL_TYPE    40000
+#define  IOCTL_HELLO    CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
+#define  SIOCSIFADDR    CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
+
+#define  STR_DEV_LEN    46*2
+#define  STR_DEV_LEN    38*sizeof(WCHAR)
+
+#define  LEN_IFACE_DEV  46*sizeof(WCHAR)
+#define  LEN_IFACE      38*sizeof(WCHAR)
+
+#define  ETH_ALEN       6         /* Octets in one ethernet addr	 */
+#define  PACKET_SIZE    64*1024
+
+/*
+ * TODO:
+ * - implement dev_write for sending
+ * - split IRP/SL defines
+ * - check and clean up duplicate/old/unused code
+ * - critical sections for packet management
+ * - iface_open/iface_close status/error management
+ * - merging code with connect/ tree, integrating into build process
+ * - generate full device string in kernel space
+ * - fixing FILE_DEVICE_, adding DIRECT_IO in device extension
+ * - extending ioctl's (_recv,_send,_open,_close,_file,...)
+ * - adding autodetect of ifaces in user space
+ * - adding file support in user/kernel space
+ * - scripts for autobuild(nmake)/autosign(see msdn)
+ */
+
+struct user_irp {
+	int irp_type;
+	wchar_t irp_data[STR_DEV_LEN];
+};
+
+int connect_packet_filter_test
+{
+	HANDLE hDevice;
+	HANDLE hInstance;
+	int i;
+	int n;
+	int ulen = 0;
+	int out_len = 0;
+	unsigned char *ubuf;
+	unsigned char *out;
+	out = (void *) malloc(PACKET_SIZE);
+	ubuf = (void *) malloc(PACKET_SIZE);
+	if (!ubuf) {
+		printf("MALLOC enomem\n");
+		return 4;
+	}
+	
+	hDevice = CreateFile("\\\\.\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+	printf("Handle pointer: %p\n", hDevice);
+	
+	if (INVALID_HANDLE_VALUE == hDevice) {
+		printf("CREAT file error\n");
+		return 1;
+	}
+	
+	hInstance = CreateFile("\\\\.\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+	printf("Handle pointer for instance: %p\n", hInstance);
+	
+	if (INVALID_HANDLE_VALUE != hInstance) {
+		printf("CREAT multiple instance error\n");
+		return 2;
+	}
+	
+	ubuf[0] = 0x1A;
+	ubuf[1] = 0x1B;
+	ubuf[2] = 0x1C;
+	ubuf[3] = 0x1D;
+	
+	if (!DeviceIoControl(hDevice,  IOCTL_HELLO, ubuf, PACKET_SIZE, out, PACKET_SIZE, &out_len, NULL)) {
+		printf("IOCTL dev error\n");
+	}
+	
+	ubuf[0] = 0x21;
+	ubuf[1] = 0x22;
+	ubuf[2] = 0x23;
+	ubuf[3] = 0x24;
+	
+	if (!DeviceIoControl(hDevice2, IOCTL_HELLO, ubuf, PACKET_SIZE, out, PACKET_SIZE, &out_len, NULL)) {
+		printf("IOCTL dev2 error\n");
+	}
+	
+	for (n = 0; n < 16; n++) {
+		//ZeroMemory(ubuf, PACKET_SIZE);
+		
+		if (!ReadFile(hDevice, ubuf, PACKET_SIZE, &ulen, NULL)) {
+			printf("READ packet error\n");
+			return 3;
+		}
+		
+		printf("[len=%d]\n", ulen);
+		for (i = 0; i < ulen; i++) {
+			if (i != 0 && ((i % 16) == 0)) {
+				printf("\n");
+			}
+			printf(" %02X", ubuf[i]);
+		}
+		printf("\n\n");
+	}
+	
+	CloseHandle(hDevice);
+	
+	return 0;
+}
+
+int __cdecl main(int argc, char* argv[])
+{
+	return connect_packet_filter_test();
+}
+
+#endif
 
