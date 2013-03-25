@@ -20,6 +20,9 @@ endif
 
 ### general variables section
 
+CDIR   := `basename $(PWD)`
+STMP   := `date +%Y%m%d_%H%M%S`
+
 AR     := ar
 CFLAGS += -Wall -Wextra -DCNCT_BUILDREV="`bzr revno`"
 
@@ -191,6 +194,16 @@ run-cross-dynamic: $(NT_OUT_BIN_DIR)/$(BIN).exe
 run-cross-static: $(NT_OUT_BIN_DIR)/$(BIN)_static.exe
 	@echo "\n ----> making target:" $@ "<----\n"
 	$(foreach app, $(BIN), wine $(NT_OUT_BIN_DIR)/$(app)_static.exe;)
+
+###
+
+ball: ball-tar ball-zip
+
+ball-tar:
+	cd .. && tar -czvf $(CDIR)_$(STMP).tar.gz $(CDIR)/connect.* $(CDIR)/lib $(CDIR)/README $(CDIR)/src
+
+ball-zip:
+	cd .. && zip -r $(CDIR)_$(STMP).zip $(CDIR)/connect.* $(CDIR)/lib $(CDIR)/README $(CDIR)/src
 
 ###
 
