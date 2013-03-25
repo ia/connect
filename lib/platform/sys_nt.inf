@@ -1,5 +1,9 @@
+
+;-------------------------------------------------------------------------
+; Header Section
+;-------------------------------------------------------------------------
 ;
-; more info on this brain damaged format:
+; More info about this brain damaged format:
 ;
 ; http://bazaar.launchpad.net/~iaz/+junk/mirror-winddk/view/head:/7600.16385.1/src/network/ndis/filter/netlwf.inf
 ; http://www-pc.uni-regensburg.de/systemsw/TECHTOOL/w95/doc/SAMPLE.HTM
@@ -7,6 +11,9 @@
 ; inf2cat /driver:C:\path\to\dir\with\file.inf /os:7_x64
 ;
 
+;-------------------------------------------------------------------------
+; Version Section
+;-------------------------------------------------------------------------
 [version]
 Signature   = "$WINDOWS NT$"
 ; HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class
@@ -14,7 +21,7 @@ Class       = NetService
 ClassGUID   = {4D36E974-E325-11CE-BFC1-08002BE10318}
 Provider    = %Cnct%
 DriverVer   = 01/23/2013,1.0.0.1
-CatalogFile = pf.cat
+CatalogFile = cpf.cat
 
 [Manufacturer]
 %Cnct%=CNCT.NTamd64, NTAMD64
@@ -26,10 +33,10 @@ CatalogFile = pf.cat
 ;%NdisLwf_Desc%=Install, MS_NdisLwf
 
 [CNCT.NTamd64]
-%pf_Desc%=Install, PCKT_pf
+%cpf_Desc%=Install, PCKT_cpf
 
 [NTAMD64]
-%pf_Desc%=Install, PCKT_pf
+%cpf_Desc%=Install, PCKT_cpf
 
 ;-------------------------------------------------------------------------
 ; Installation Section
@@ -38,30 +45,30 @@ CatalogFile = pf.cat
 AddReg=Inst_Ndi
 Characteristics=0x40000
 ;NetCfgInstanceId="{5cbf81bd-5055-47cd-9055-a76b2b4e3697}"
-;Copyfiles = pf_copyfiles
+;Copyfiles = cpf_copyfiles
 CopyFiles = CopySys
 
 [SourceDisksNames]
-1=%pf_Desc%,"",,
+1=%cpf_Desc%,"",,
 
 [SourceDisksFiles]
-pf.sys=1
+cpf.sys=1
 
 [DestinationDirs]
 DefaultDestDir=12
-;pf_copyfiles=12
+;cpf_copyfiles=12
 
 ;[ndisniff_copyfiles]
-;pf.sys,,,2
+;cpf.sys,,,2
 
 [CopySys]
-pf.sys
+cpf.sys
 
 ;-------------------------------------------------------------------------
 ; Ndi installation support
 ;-------------------------------------------------------------------------
 [Inst_Ndi]
-HKR, Ndi,Service,,"PacketFilter"
+HKR, Ndi,Service,,"cpf"
 ;HKR, Ndi,CoServices,0x00010000,"NdisLwf"
 ;HKR, Ndi,HelpText,,%NdisLwf_HelpText%
 ;HKR, Ndi,FilterClass,, compression
@@ -69,7 +76,7 @@ HKR, Ndi,Service,,"PacketFilter"
 HKR, Ndi\Interfaces,UpperRange,,"noupper"
 HKR, Ndi\Interfaces,LowerRange,,"nolower"
 ;HKR, Ndi\Interfaces, FilterMediaTypes,,"ethernet"
-;HKR, Ndi,FilterRunType, 0x00010001, 1 ;this filter must run before any protocol can bind to the below miniport 
+;HKR, Ndi,FilterRunType, 0x00010001, 1 ;this filter must run before any protocol can bind to the below miniport
 
 ;-------------------------------------------------------------------------
 ; Service installation support
@@ -92,16 +99,16 @@ HKR, Ndi\Interfaces,LowerRange,,"nolower"
 
 ;[Common.Params.reg]
 
-;HKR, FilterDriverParams\DriverParam, 		ParamDesc, 	, "Driverparam for lwf"
-;HKR, FilterDriverParams\DriverParam, 		default, 	, "5"
-;HKR, FilterDriverParams\DriverParam, 		type, 		, "int"
+;HKR, FilterDriverParams\DriverParam,   ParamDesc, , "Driverparam for lwf"
+;HKR, FilterDriverParams\DriverParam,   default,   , "5"
+;HKR, FilterDriverParams\DriverParam,   type,      , "int"
 
-;HKR, FilterAdapterParams\AdapterParam, 		ParamDesc, 	, "Adapterparam for lwf"
-;HKR, FilterAdapterParams\AdapterParam, 		default, 	, "10"
-;HKR, FilterAdapterParams\AdapterParam, 		type, 		, "int"
+;HKR, FilterAdapterParams\AdapterParam, ParamDesc, , "Adapterparam for lwf"
+;HKR, FilterAdapterParams\AdapterParam, default,   , "10"
+;HKR, FilterAdapterParams\AdapterParam, type,      , "int"
 
 [Strings]
-Cnct = "Connect project"
-pf_Desc = "NDIS basic packet filter"
-pf_HelpText = "Packet dumper based on NDIS packet filter"
+Cnct = "connect library"
+cpf_Desc = "NDIS based packet sniffer"
+cpf_HelpText = "Connect Packet Filter"
 
