@@ -38,19 +38,18 @@
 #	define __func__ __FUNCTION__  /* stupid MS monkeys cannot into standart defines */
 #endif
 
-#define  RESERVED(_p)           ((PPACKET_RESERVED)((_p)->ProtocolReserved))     /* for backward compatibility */
 #define  RSRVD_PCKT_CTX(_p)     ((struct packet_ctx *)((_p)->ProtocolReserved))
 #define  TRANSMIT_PACKETS       128
 #define  MTU                    1514
 
 /* ioctl related defines */
-/* TODO: refactoring me */
 #define  SIOCTL_TYPE            40000
-#define  IOCTL_HELLO            CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
-#define  SIOCSIFADDR            CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
-//#define  FILE_DEVICE_ROOTKIT    0x00002a7b
+/* TODO: implement demo */
+#define  IOCTL_DEMO_ODIRECT     CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_IN_DIRECT, FILE_READ_DATA | FILE_WRITE_DATA)
+#define  IOCTL_DEMO_BUFFERD     CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
+#define  SIOCSIFADDR            CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
 
-/* proto related constants */
+/* inet proto related constants */
 #define  IPPROTO_ICMP       1   /* control message protocol      */
 #define  IPPROTO_TCP        6   /* transmission control protocol */
 #define  IPPROTO_UDP       17   /* user datagram protocol        */
@@ -69,7 +68,7 @@
 #define  IRP_IOCTL(  s)        (s->Parameters.DeviceIoControl.IoControlCode)
 #define  IRP_DONE(  rp, info, ret) \
 		rp->IoStatus.Status = ret; rp->IoStatus.Information = info; IoCompleteRequest(rp, IO_NO_INCREMENT);
-
+#define  SL_FNBUF(   s)        (s->FileObject->FileName.Buffer)
 #define  DEV_NOT_OPEN(d)       (!d || !(d->lock_init) || !(d->lock_open))
 #define  DEV_NOT_READY(d)      (!d || !(d->lock_init) || !(d->lock_open) || !(d->lock_ready))
 
@@ -91,10 +90,13 @@
 #define nt_splock_init(  lock          )    KeInitializeSpinLock(         lock                     )
 #define nt_splock_lock(  lock, i       )    KeAcquireSpinLock(            lock,     i              )
 #define nt_splock_unlock(lock, i       )    KeReleaseSpinLock(            lock,     i              )
+#define nd_splock_init(  lock          )    NdisAllocateSpinLock(         lock                     )
+#define nd_splock_lock(  lock          )    NdisAcquireSpinLock(          lock                     )
+#define nd_splock_unlock(lock          )    NdisReleaseSpinLock(          lock                     )
+#define nd_splock_free(  lock          )    NdisFreeSpinLock(             lock                     )
 
 #define LOCK(s   )    if(!s) s = 1
 #define UNLOCK(s )    if( s) s = 0
-
 
 #define ATOM_LOCK     nt_splock_lock(   &g_splock, &g_irq );
 #define ATOM_UNLOCK   nt_splock_unlock( &g_splock, g_irq  );
@@ -106,10 +108,10 @@
 	IoCreateDevice(mod, 0, name, FILE_DEVICE_TRANSPORT, FILE_DEVICE_SECURE_OPEN, false, dev)
 
 /* routine */
-#define  PROTONAME  "pf"
-#define LPROTONAME  "pf"
-#define  MODNAME    "pf"
-#define LMODNAME    "pf"
+#define  PROTONAME  "cpf"
+#define LPROTONAME  "cpf"
+#define  MODNAME    "cpf"
+#define LMODNAME    "cpf"
 
 #ifndef RELEASE /* debug output routine */
 #	define printk(  fmt, ...   )    DbgPrint(fmt, __VA_ARGS__)
@@ -227,9 +229,11 @@ typedef  NDIS_REQUEST                   nd_req;
 typedef  NDIS_MEDIUM                    nd_medm;
 typedef  NDIS_PROTOCOL_CHARACTERISTICS  nd_proto;
 typedef  LIST_ENTRY                     lent;
-typedef  KSPIN_LOCK                     spin_lock;
+typedef  KSPIN_LOCK                     nt_splock;
+typedef  NDIS_SPIN_LOCK                 nd_splock;
 typedef  KIRQL                          irq;
 typedef  NDIS_PHYSICAL_ADDRESS          nd_phyaddr;
+
 
 /*** custom structs ***/
 
@@ -286,17 +290,6 @@ struct ip {
 };
 
 
-typedef struct _PACKET_RESERVED { /* for backward compatibility */
-	LIST_ENTRY  ListElement;
-	PIRP        Irp;
-	PVOID       pBuffer; /* used for buffers built in kernel mode */
-	ULONG       bufferLen;
-	PVOID       pHeaderBufferP;
-	ULONG       pHeaderBufferLen;
-	PMDL        pMdl;
-} PACKET_RESERVED, *PPACKET_RESERVED;
-
-
 struct packet_ctx {
 	lent        entry;
 	irp        *rp;
@@ -308,11 +301,6 @@ struct packet_ctx {
 };
 
 
-struct user_ctx {
-	ulong          data;
-	nd_ret         status;
-};
-
 /* TODO: fix user irp management arch */
 #define  LEN_DEV         ( 7 * sizeof(wchar_t))
 #define  LEN_IFACE       (38 * sizeof(wchar_t))
@@ -321,16 +309,11 @@ struct user_ctx {
 #define  LEN_IFACE_PATH  (LEN_DEV + LEN_IFACE_NAME)
 #define  STR_DEV_LEN     LEN_IFACE
 #define  PACKET_SIZE     64 * 1024
-/*
-\\Device\{...}
-\\Device\pf\{...}
-\{...}
-*/
+
+
 struct dev_ctx {
 	wchar_t  path[LEN_IFACE_PATH];
 	wchar_t  name[LEN_IFACE_NAME];
-	
-	uchar    mac[ETH_ALEN];
 	nd_hndl  hndl;
 	nd_hndl  buffer_pool;
 	nd_hndl  packet_pool;
@@ -338,33 +321,24 @@ struct dev_ctx {
 	int      packet_rq;
 	int      packet_len;
 	nd_ret   status;
-	int      lock_init;  /* lock on init in dev_open              */
-	int      lock_open;  /* lock on NdisOpenAdapter in iface_open */
-	int      lock_ready; /* lock on SIOCSIFADDR in dev_ioctl */
+	/* TODO: lock_ should be removed */
+	int      lock_init;  /* lock on init in dev_open               */
+	int      lock_open;  /* lock on NdisOpenAdapter in iface_open  */
+	int      lock_ready; /* lock on SIOCSIFADDR in dev_ioctl       */
+	/* TODO: l_ should be implemented */
+	nd_lock  l_rdrv;     /* ndis spin lock for dev_read/ndis_recv  */
+	nd_lock  l_wrsd;     /* ndis spin lock for dev_write/ndis_send */
 };
 
 
-struct module_ctx {
-	dev_obj       *device;
-	const wchar_t  device_path;
-	const wchar_t  device_link;
-	nd_hndl        iface_hndl;
-	nd_hndl        proto_hndl;
-	uchar         *packet;
-	size_t         packet_size;
-	int            packet_ready;
-	nd_hndl        packet_pool;
-	nd_hndl        buffer_pool;
-	nd_ev          closew_event;
-};
-
-struct user_irp {
-	int irp_type;
-	wchar_t irp_data[STR_DEV_LEN];
+struct io_buf {
+	int flag;
+	uchar data[8];
 };
 
 
 /*** *** *** declarations of functions (code map) *** *** ***/
+
 
 /* routine */
 int      gettimeofday       (struct timeval *dst);
@@ -404,7 +378,6 @@ void     iface_close  (struct dev_ctx *dctx)            ;
 /* init/exit routine */
 nt_ret   init_ndis    (mod_obj *mobj)                   ;
 nt_ret   init_device  (mod_obj *mobj)                   ;
-nt_ret   init_ctx     (void)                            ;
 void     exit_ndis    (mod_obj *mobj)                   ;
 void     exit_device  (mod_obj *mobj)                   ;
 void     exit_module  (mod_obj *mobj)                   ;
@@ -420,41 +393,22 @@ nt_ret   DriverEntry  (mod_obj *mobj, ustring *regpath) ;
 
 /*** *** *** global variables *** *** ***/
 
-/* TODO: remove unused */
-
-nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device");
 
 dev_obj           *g_device;
+nd_str             g_dev_prefix = NDIS_STRING_CONST("\\Device");
+/* TODO: rename to cpf, update LEN_ macros */
 const wchar_t      g_devpath[] = L"\\Device\\myDevice1";     // Define the device
 const wchar_t      g_devlink[] = L"\\DosDevices\\myDevice1"; // Symlink for the device
-/*
-const wchar_t      g_devpath2[] = L"\\Device\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}";     // Define the device
-const wchar_t      g_devlink2[] = L"\\DosDevices\\myDevice1\\{BDB421B0-4B37-4AA2-912B-3AA05F8A0829}"; // Symlink for the device
-*/
-/*
-nd_hndl            g_iface_hndl[8];
-int                g_iface_indx = 0;
-nd_hndl            g_proto_hndl;
-nd_hndl            g_buffer_pool;
-nd_hndl            g_packet_pool;
-uchar             *g_packet       = NULL     ;
-size_t             g_packet_size  = 64 * 1024;
-int                g_packet_ready = 0;
-nd_ev              g_closew_event;
-int                g_iface_ready  = 0;
-ustring            g_iface_name;
-
-struct user_ctx    g_usrctx;
-struct module_ctx  g_modctx;
-*/
-//struct packet_ctx  g_pckctx;
+/* TODO: move some g_ vars in dev_ctx */
 nd_hndl            g_proto_hndl;
 nd_ev              g_closew_event;
-spin_lock          g_splock;
+nt_splock          g_splock;
 irq                g_irq;
 nd_phyaddr         g_phymax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
+
 #define LIST_MAX 8
 struct dev_ctx    *g_dev_list[LIST_MAX];
+
 
 /*** *** *** helper functions *** *** ***/
 
@@ -482,9 +436,11 @@ void ndis_packet_recv(struct dev_ctx *dctx, const uchar *packet, int len)
 	//struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
 	DBG_IN;
 	
+	/* ndis_lock rdrv*/
 	nt_memzero(dctx->packet, PACKET_SIZE);
 	memcpy(dctx->packet, packet, len);
 	dctx->packet_len = len;
+	/* ndis_release rdrv*/
 	
 	if (len == MTU) {
 		uchar *zero = nt_malloc(MTU);
@@ -509,7 +465,6 @@ void ndis_packet_send(struct dev_ctx *dctx, const uchar *packet, int len)
 	DBG_IN;
 	
 	/* TODO: fix interface ready detection */
-	
 	RET_ON_V_VM((!dctx || !(dctx->hndl) || !(dctx->lock_init) || !(dctx->lock_open) || !(dctx->lock_ready) || !packet), "iface is not ready for sending");
 	
 	NdisAllocatePacket(&ret, &npacket, dctx->packet_pool);
@@ -561,10 +516,8 @@ void ndis_iface_open(nd_hndl protobind_ctx, nd_ret s, nd_ret err)
 	nd_ret ret;
 	nd_ret ret_req;
 	nd_req ndis_req;
-	ulong pcktype = NDIS_PACKET_TYPE_PROMISCUOUS;
-	//ulong pcktype = NDIS_PACKET_TYPE_ALL_LOCAL;
-	struct dev_ctx *dctx;
-	dctx = (struct dev_ctx *) protobind_ctx;
+	ulong  pcktype = NDIS_PACKET_TYPE_PROMISCUOUS; // NDIS_PACKET_TYPE_ALL_LOCAL;
+	struct dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -625,6 +578,7 @@ void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 	
 	DBG_IN;
 	
+	/* TODO: verify non-RC */
 	nt_splock_lock(&g_splock, &g_irq);
 	
 	i = RSRVD_PCKT_CTX(npacket)->rp;
@@ -653,29 +607,23 @@ void ndis_send(nd_hndl protobind_ctx, nd_pack *npacket, nd_ret s)
 
 nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr_buf_len, void *labuf, uint labuf_len, uint psize)
 {
-	void               *mbuf;
-	struct packet_ctx  *pctx;
-	nd_pack            *npacket;
-	nd_buf             *nbuf;
-	nd_ret              ret;
-	ulong               blen;
-	ulong               tx_size = 0;
-	uint                tx_bytes = 0;
-	struct dev_ctx     *dctx;
-
-	dctx = (struct dev_ctx *) protobind_ctx;
+	void            *mbuf;
+	nd_pack         *npacket;
+	nd_buf          *nbuf;
+	nd_ret           ret;
+	ulong            blen;
+	ulong            tx_size  = 0;
+	uint             tx_bytes = 0;
+	struct dev_ctx  *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
 	tx_size = psize;
-	
-	/* ??? */
-	//DBG_OUT_R(STATUS_DROP);
-	
 	if ((hdr_buf_len > ETH_HLEN) || (tx_size > (MTU - ETH_HLEN))) {
 		DBG_OUT_RPM("ndis_recv: packet not accepted", NDIS_STATUS_NOT_ACCEPTED);
 	}
 	
+	/* TODO: refactoring ledder */
 	mbuf = nt_malloc(MTU - ETH_HLEN);
 	if (mbuf) {
 		nt_memzero(mbuf, (MTU - ETH_HLEN));
@@ -692,12 +640,12 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 				if (NDIS_STATUS_SUCCESS == ret) {
 					RSRVD_PCKT_CTX(npacket)->pbuf = mbuf;
 					
-					/*this is important here we attach the buffer to the packet*/
+					/* attach the buffer to the packet */
 					NdisChainBufferAtFront(npacket, nbuf);
 					NdisTransferData(&(dctx->status), dctx->hndl, mac_ctx, 0, tx_size, npacket, &tx_bytes);
 					
 					if (ret != NDIS_STATUS_PENDING) {
-						/*important to call the complete routine since it's not pending*/
+						/* call the complete routine since it's not pending */
 						ndis_transfer(dctx, npacket, ret, tx_bytes);
 					}
 					
@@ -732,14 +680,11 @@ void ndis_recv_cmplt(nd_hndl protobind_ctx)
 void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint tx)
 {
 	nd_buf *nbuf;
-	
-	void *tbuf;
-	ulong tbuf_len;
-	void *hdr_tbuf;
-	ulong hdr_tbuf_len;
-	struct dev_ctx *dctx;
-	
-	dctx = (struct dev_ctx *) protobind_ctx;
+	void   *tbuf;
+	ulong   tbuf_len;
+	void   *hdr_tbuf;
+	ulong   hdr_tbuf_len;
+	struct  dev_ctx *dctx = (struct dev_ctx *) protobind_ctx;
 	
 	DBG_IN;
 	
@@ -772,8 +717,9 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	while (dctx->packet_rq) {
 		continue;
 	}
+	
 	/* packet is gone here */
-	dctx->packet_len = 0;
+	/* ATOM? */ dctx->packet_len = 0;
 	
 	DBG_OUT_V;
 }
@@ -805,11 +751,11 @@ void ndis_unload(void)
 
 nt_ret dev_open(dev_obj *dobj, irp *i)
 {
-	int n = 0;
-	nt_ret r;
+	int       n = 0;
+	nt_ret    r;
+	struct    dev_ctx *dinit, *dctx;
+	ustring   ifname_path;
 	io_stack *sl = nt_irp_get_stack(i);
-	struct dev_ctx *dinit, *dctx;
-	ustring ifname_path;
 	
 	DBG_IN;
 	
@@ -819,8 +765,8 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	}
 	
 	printdbg("FileName            == %ws\n", sl->FileObject->FileName.Buffer);
-	printdbg("sl->FObj->FName.L   == %d\n", sl->FileObject->FileName.Length);
-	printdbg("g_dev_prefix.Length == %d\n", g_dev_prefix.Length);
+	printdbg("sl->FObj->FName.L   == %d\n" , sl->FileObject->FileName.Length);
+	printdbg("g_dev_prefix.Length == %d\n" , g_dev_prefix.Length);
 	
 	/* legacy code for open global device correctly */
 	if (sl->FileObject->FileName.Length == 0 && !(sl->FileObject->FileName.Buffer)) {
@@ -831,25 +777,9 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	for (n = 0; n < LIST_MAX; n++) {
 		if (g_dev_list[n]) {
 			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
-			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
-			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
-			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
-			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
 			if (memcmp(g_dev_list[n]->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME) == 0) {
 				IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 				DBG_OUT_R(STATUS_DEVICE_BUSY);
-				//g_dev_list[n] = (struct dev_ctx *)(sl->FileObject->FsContext);
-/*
-				g_dev_list[n]->instance++;
-				sl->FileObject->FsContext = (void *) g_dev_list[n];
-				printm("INSTANCE: using EXISTED");
-				printm("INSTANCE: using EXISTED");
-				printm("INSTANCE: using EXISTED");
-				printm("INSTANCE: using EXISTED");
-				printm("INSTANCE: using EXISTED");
-				IRP_DONE(i, 0, NT_OK);
-				DBG_OUT_R(NT_OK);
-*/
 			}
 		}
 	}
@@ -859,12 +789,12 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 		DBG_OUT_R(STATUS_DEVICE_BUSY);
 	}
-		
+	
 	if ((sl->FileObject->FileName.Length != LEN_IFACE_NAME) || ((sl->FileObject->FileName.Length + g_dev_prefix.Length) != LEN_IFACE_PATH)) {
 		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
-		
+	
 	dctx = nt_malloc(sizeof(struct dev_ctx));
 	if (!dctx) {
 		IRP_DONE(i, 0, STATUS_NO_MEMORY);
@@ -879,11 +809,13 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	if (!(dctx->packet)) {
 		IRP_DONE(i, 0, STATUS_NO_MEMORY);
 		nt_free(dctx);
+		dctx = NULL;
 		DBG_OUT_R(STATUS_NO_MEMORY);
 	}
 	nt_memzero(dctx->packet, PACKET_SIZE);
 	
 	nt_memcpy(dctx->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME);
+	g_dev_list[n] = dctx;
 	
 	ifname_path.Length = 0;
 	ifname_path.MaximumLength = (ushort) (LEN_IFACE_PATH + sizeof(UNICODE_NULL));
@@ -894,12 +826,14 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, sl->FileObject->FileName.Buffer);
 	nt_memcpy(dctx->path, ifname_path.Buffer, LEN_IFACE_PATH);
-
+	
 	r = iface_open(dctx);
 	if (IS_NT_ERR(r)) {
 		IRP_DONE(i, 0, r);
 		nt_free(dctx);
 		nt_free(ifname_path.Buffer);
+		g_dev_list[n] = NULL;
+		dctx = NULL;
 		DBG_OUT_R(r);
 	}
 		
@@ -911,9 +845,6 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("ifname_path      == %ws\n", ifname_path.Buffer);
 	printdbg("dctx->name       == %ws\n", dctx->name);
 	printdbg("dctx->path       == %ws\n", dctx->path);
-	printdbg("dctx->lock_init  == %d\n" , dctx->lock_init);
-	printdbg("dctx->lock_open  == %d\n" , dctx->lock_open);
-	printdbg("dctx->lock_ready == %d\n" , dctx->lock_ready);
 	
 	LOCK(dctx->lock_ready);
 	
@@ -931,11 +862,11 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 
 nt_ret dev_read(dev_obj *dobj, irp *i)
 {
-	int             len = 0;
-	io_stack       *sl;
-	ulong           rlen;
+	io_stack       *sl   = NULL;
+	struct dev_ctx *dctx = NULL;
 	uchar          *rbuf = NULL;
-	struct dev_ctx *dctx;
+	ulong           rlen = 0;
+	int             len  = 0;
 	
 	DBG_IN;
 	
@@ -953,11 +884,9 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 	
 	if (i->MdlAddress) {
 		printm("direct_IO");
-		if (!(rbuf = MmGetSystemAddressForMdlSafe(i->MdlAddress, NormalPagePriority))) {
-			if (i->UserBuffer) {
-				printm("!mdl; user_buffer");
-				rbuf = i->UserBuffer;
-			}
+		if ((!(rbuf = MmGetSystemAddressForMdlSafe(i->MdlAddress, NormalPagePriority))) && (i->UserBuffer)) {
+			printm("!mdl; user_buffer");
+			rbuf = i->UserBuffer;
 		}
 	}
 	
@@ -976,38 +905,21 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 		continue;
 	}
 	
+	/* ndis_lock rdrv */
 	dctx->packet_rq = 1;
-	
-	len = (((rlen) <= (dctx->packet_len)) ? (rlen) : (dctx->packet_len)); /* work only with /w */
-	/*
-	if (rlen <= dctx->packet_len) {
-		len = rlen;
-	} else {
-		len = dctx->packet_len;
-	}
-	*/
-	
-	/*
-	printdbg("rlen = %X ( %d )", rlen, rlen);
-	printdbg("len = %X ( %d )", len, len);
-	
-	DbgPrint("rbuf 0 = %02X", rbuf[0]);
-	DbgPrint("rbuf 1 = %02X", rbuf[1]);
-	DbgPrint("rbuf 2 = %02X", rbuf[2]);
-	DbgPrint("rbuf 3 = %02X", rbuf[3]);
-	*/
-	
+	len = (((rlen) <= (dctx->packet_len)) ? (rlen) : (dctx->packet_len));
 	nt_memzero(rbuf, rlen);
 	nt_memcpy(rbuf, dctx->packet, len);
+	dctx->packet_rq = 0;
+	/* ndis_release rdrv */
 	
 	IRP_DONE(i, len, NT_OK);
-	
-	dctx->packet_rq = 0;
 	
 	DBG_OUT_R(NT_OK);
 }
 
 
+/* TODO: implementation */
 nt_ret dev_write(dev_obj *dobj, irp *i)
 {
 	io_stack       *sl   = nt_irp_get_stack(i);
@@ -1035,6 +947,7 @@ nt_ret dev_write(dev_obj *dobj, irp *i)
 }
 
 
+/* TODO: refactoring */
 nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 {
 	io_stack *sl;
@@ -1131,20 +1044,35 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
 	int n = 0;
-	io_stack *sl = nt_irp_get_stack(i);
-	struct dev_ctx *dctx;
-	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	io_stack       *sl   = nt_irp_get_stack(i);
+	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
 	DBG_IN;
+	
+	if (!sl) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
+	if (DEV_NOT_READY(dctx)) {
+		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
+		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
 	for (n = 0; n < LIST_MAX; n++) {
-		if (g_dev_list[n]) {
-			if (memcmp(g_dev_list[n]->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME) == 0) {
-				g_dev_list[n] = NULL;
-			}
+		if ((g_dev_list[n]) && (memcmp(g_dev_list[n]->name, SL_FNBUF(sl), LEN_IFACE_NAME) == 0)) {
+			g_dev_list[n] = NULL;
 		}
 	}
 	
+	if (n == LIST_MAX) {
+		/* nothing to close */
+		IRP_DONE(i, 0, NT_OK);
+		DBG_OUT_R(NT_OK);
+	}
+	
 	iface_close(dctx);
+	IRP_DONE(i, 0, NT_OK);
 	DBG_OUT_R(NT_OK);
 }
 
@@ -1173,24 +1101,20 @@ void init_sending(struct dev_ctx *dev)
 
 nt_ret iface_open(struct dev_ctx *dctx)
 {
-	nd_ret ret, err;
+	nd_ret  ret, err;
 	ustring ifname, ifname_path;
-	uint mindex = 0;
-	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
+	uint    mindex = 0;
+	nd_medm marray = NdisMedium802_3; // specify ethernet network
 	
 	DBG_IN;
 	
 	printdbg("input: iface_name == %ws\n", dctx->path);
 	
-	ifname_path.Length = 0;
+	ifname_path.Length        = 0;
 	ifname_path.MaximumLength = (ushort) (LEN_IFACE_PATH + sizeof(UNICODE_NULL));
-	ifname_path.Buffer = nt_malloc(ifname_path.MaximumLength);
+	ifname_path.Buffer        = nt_malloc(ifname_path.MaximumLength);
 	nt_memzero(ifname_path.Buffer, ifname_path.MaximumLength);
 	
-	/* TODO: verify path management */
-	
-	printm("init local adapter name");
-	//RtlAppendUnicodeStringToString(&ifname_path, &g_dev_prefix);
 	RtlAppendUnicodeToString(&ifname_path, dctx->path);
 	printdbg("output: ifname_path == %ws\n", ifname_path.Buffer);
 	
@@ -1203,8 +1127,6 @@ nt_ret iface_open(struct dev_ctx *dctx)
 		}
 		DBG_OUT_R(ret);
 	}
-	
-	//return NT_ERR; <- good here
 	
 	ndis_iface_open(dctx, ret, ND_OK);
 	
@@ -1219,7 +1141,7 @@ void iface_close(struct dev_ctx *dctx)
 	DBG_IN;
 	
 	if (DEV_NOT_READY(dctx)) {
-		printm("RC FAIL");
+		printm("BUG_ON?");
 		DBG_OUT_VP(STATUS_DEVICE_NOT_READY);
 	}
 	
@@ -1238,7 +1160,6 @@ void iface_close(struct dev_ctx *dctx)
 	NdisFreePacketPool(dctx->packet_pool);
 	
 	nt_free(dctx->packet);
-	/* TODO: verify me */
 	dctx->packet = NULL;
 	nt_free(dctx);
 	dctx = NULL;
@@ -1252,14 +1173,14 @@ void iface_close(struct dev_ctx *dctx)
 
 nt_ret init_ndis(mod_obj *mobj)
 {
-	nd_ret ret, err;
+	nd_ret   ret, err;
 	nd_proto proto;
-	ustring ifname;
-	uint mindex = 0;
+	ustring  ifname;
+	uint     mindex = 0;
 	
-	//This string must match that specified in the registery (under Services) when the protocol was installed
-	nd_str pname   = NDIS_STRING_CONST("pf"); /* PROTONAME */
-	nd_medm marray = NdisMedium802_3; // specifies a ethernet network
+	/* string must match that specified in the registery (under Services) when the protocol was installed */
+	nd_str pname   = NDIS_STRING_CONST("cpf"); /* PROTONAME */
+	nd_medm marray = NdisMedium802_3;          /* ethernet media */
 	
 	DBG_IN;
 	
@@ -1295,12 +1216,8 @@ nt_ret init_ndis(mod_obj *mobj)
 	printm("register proto");
 	NdisRegisterProtocol(&ret, &g_proto_hndl, &proto, sizeof(nd_proto));
 	RET_ON_ERRND_RPM("NdisRegisterProtocol: error", ret);
-	/*
-	printm("preparing buffer for packet");
-	g_packet = (uchar *) nt_malloc(g_packet_size);
-	RET_ON_NULL(g_packet);
-	nt_memzero(g_packet, g_packet_size);
-	*/
+	
+	printm("init global spinlock");
 	nt_splock_init(&g_splock);
 	
 	DBG_OUT_R(NT_OK);
@@ -1309,14 +1226,13 @@ nt_ret init_ndis(mod_obj *mobj)
 
 nt_ret init_device(mod_obj *mobj)
 {
-	int i = 0;
+	int      i = 0;
 	nt_ret   ret;
 	ustring  devname_path;
 	ustring  devname_link;
 	
 	DBG_IN;
 	
-	// We set up the name and symbolic link in Unicode
 	printm("init strings for devices");
 	nt_ustring_init(&devname_path, g_devpath);
 	nt_ustring_init(&devname_link, g_devlink);
@@ -1352,25 +1268,12 @@ nt_ret init_device(mod_obj *mobj)
 }
 
 
-nt_ret init_ctx(void)
-{
-	DBG_IN;
-/* TODO: ?
-	g_modctx.device_path = g_devpath;
-	g_modctx.device_link = g_devlink;
-	g_modctx.packet = NULL;
-	g_modctx.packet_size = 64 * 1024;
-	g_modctx.packet_ready = 0;
-*/
-	DBG_OUT_R(NT_OK);
-}
-
-
 /*** *** *** clean up on exit routine *** *** ***/
 
 
 void exit_ndis(mod_obj *mobj)
 {
+	int    i = 0;
 	nd_ret ret;
 	
 	DBG_IN;
@@ -1378,7 +1281,12 @@ void exit_ndis(mod_obj *mobj)
 	printm("resetting ndis event");
 	NdisResetEvent(&g_closew_event);
 	
-	//iface_close();
+	for (i = 0; i < LIST_MAX; i++) {
+		if (g_dev_list[i]) {
+			printm("closing remaining opened adapters");
+			iface_close(g_dev_list[i]);
+		}
+	}
 	
 	printm("disabling protocol");
 	NdisDeregisterProtocol(&ret, g_proto_hndl);
@@ -1393,7 +1301,7 @@ void exit_ndis(mod_obj *mobj)
 
 void exit_device(mod_obj *mobj)
 {
-	ustring  devname_link;
+	ustring devname_link;
 	
 	DBG_IN;
 	
@@ -1413,10 +1321,13 @@ void exit_device(mod_obj *mobj)
 void exit_module(mod_obj *mobj)
 {
 	DBG_IN;
+	
 	printm("cleaning up ndis");
 	exit_ndis(mobj);
+	
 	printm("cleaning up devices");
 	exit_device(mobj);
+	
 	DBG_OUT;
 }
 
@@ -1432,10 +1343,6 @@ nt_ret init_module(mod_obj *mobj)
 	
 	printm("init unload module callback");
 	mobj->DriverUnload = exit_module;
-	
-	printm("init device");
-	ret = init_ctx();
-	RET_ON_ERRNT_RP(ret);
 	
 	printm("init device");
 	ret = init_device(mobj);
