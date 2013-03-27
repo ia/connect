@@ -481,14 +481,15 @@ void ndis_packet_send(struct dev_ctx *dctx, const uchar *packet, int len)
 		DBG_OUT_VPM("NdisAllocateBuffer", ret);
 	}
 	
-	RSRVD_PCKT_CTX(npacket)->rp = NULL; /* so our OnSendDone() knows this is local */
+	/* mark IRP for ndis_send as local */
+	RSRVD_PCKT_CTX(npacket)->rp = NULL;
 	NdisChainBufferAtBack(npacket, nbuf);
 	NdisSend(&ret, dctx->hndl, npacket);
 	if (ret != NDIS_STATUS_PENDING) {
 		ndis_send(dctx, npacket, ret);
 	}
 	
-	/* release so we can send next ... */
+	/* release lock, can send next now */
 	nt_splock_unlock(&g_splock, g_irq);
 	DBG_OUT_V;
 }
@@ -914,35 +915,53 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 	/* ndis_release rdrv */
 	
 	IRP_DONE(i, len, NT_OK);
-	
 	DBG_OUT_R(NT_OK);
 }
 
 
-/* TODO: implementation */
 nt_ret dev_write(dev_obj *dobj, irp *i)
 {
-	io_stack       *sl   = nt_irp_get_stack(i);
-	ulong           wlen = IRP_WBLEN(sl);
-	void           *wbuf = IRP_ASBUF(i);
-	struct dev_ctx *dctx;
-	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	io_stack       *sl   = NULL;
+	struct dev_ctx *dctx = NULL;
+	uchar          *wbuf = NULL;
+	ulong           wlen = 0;
 	
 	DBG_IN;
 	
-	if (!wlen) {
+	sl = nt_irp_get_stack(i);
+	if (!sl) {
 		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	if (DEV_NOT_READY(dctx)) {
 		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
 		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
 	}
 	
+	if (i->MdlAddress) {
+		printm("direct_IO");
+		if ((!(wbuf = MmGetSystemAddressForMdlSafe(i->MdlAddress, NormalPagePriority))) && (i->UserBuffer)) {
+			printm("!mdl; user_buffer");
+			wbuf = i->UserBuffer;
+		}
+	}
+	
+	if (!wbuf) {
+		printm("buffered_IO");
+		wbuf = (uchar *) IRP_ASBUF(i);
+	}
+	
+	wlen = IRP_WBLEN(sl);
+	if ((!wlen) || (!wbuf)) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
 	ndis_packet_send(dctx, wbuf, wlen);
 	
-	IRP_DONE(i, 0, NT_OK);
+	IRP_DONE(i, wlen, NT_OK);
 	DBG_OUT_R(NT_OK);
 }
 
