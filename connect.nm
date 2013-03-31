@@ -38,6 +38,10 @@ run: run-dynamic run-static
 dir: clean
 	MD $(OUT_DIR)
 
+dir-dist:
+	-RD /Q /S $(DIST_DIR)
+	MD $(DIST_DIR)
+
 lib-dynamic: dir $(LIB_CONNECT)
 	@echo " LD " $@
 	$(CXX) $(LIB_CONNECT) $(CFLAGS) /LD /Fe$(OUT_LIB_DIR)\$(LIB_NAME) /Fo$(OUT_LIB_DIR)\\
@@ -70,27 +74,52 @@ dist:
 	copy $(OUT_LIB_DIR)\$(LIB_NAME).lib $(DIST_DIR)\\
 	copy $(OUT_LIB_DIR)\$(LIB_NAME)S.lib $(DIST_DIR)\\
 
+ndis-dev: ndis-clean-all ndis-build ndis-dist ndis-sign ndis-start
+
 ndis-build:
 	cd $(LIB_DIR)\platform && build
 
-ndis-dist:
+ndis-dist: dir-dist
 	-copy $(OUT_BIN_DIR)\amd64\cpf.sys $(DIST_DIR)\cpf_x64.sys
 	-copy $(OUT_BIN_DIR)\i386\cpf.sys $(DIST_DIR)\cpf_x86.sys
 	-copy $(LIB_DIR)\platform\sys_nt.cer $(DIST_DIR)\cpf.cer
 
+ndis-cert-init:
+	makecert -r -n "CN=cpf_cert" -ss cpf_store -sr LocalMachine
+
 ndis-cert:
-	certmgr.exe -add $(DIST_DIR)\cpf.cer -s -r localMachine trustedpublisher
-	certmgr.exe -add $(DIST_DIR)\cpf.cer -s -r localMachine root
+	certmgr.exe -add $(DIST_DIR)\cpf.cer -c -s -r localMachine trustedpublisher
+	certmgr.exe -add $(DIST_DIR)\cpf.cer -c -s -r localMachine root
 
 ndis-sign:
-	SignTool sign /v /s cpf_store /n cpf_cert /t http://timestamp.verisign.com/scripts/timstamp.dll $(DIST_DIR)\cpf_x64.sys
-	SignTool sign /v /s cpf_store /n cpf_cert /t http://timestamp.verisign.com/scripts/timstamp.dll $(DIST_DIR)\cpf_x86.sys
+	-SignTool sign /v /s cpf_store /n cpf_cert /t http://timestamp.verisign.com/scripts/timstamp.dll $(DIST_DIR)\cpf_x64.sys
+	-SignTool sign /v /s cpf_store /n cpf_cert /t http://timestamp.verisign.com/scripts/timstamp.dll $(DIST_DIR)\cpf_x86.sys
+
+ndis-start:
+	sc create cpf type= kernel binpath= $(MAKEDIR)\$(DIST_DIR)\cpf_x64.sys
+	sc start cpf
+
+ndis-stop:
+	-sc stop cpf
+	-sc delete cpf
 
 ndis-clean:
 	-del $(LIB_DIR)\platform\buildchk_*
 	-del $(LIB_DIR)\platform\buildfre_*
 	-for /d %%p in ($(LIB_DIR)\platform\objchk_*) do RD /S /Q "%%p"
 	-for /d %%p in ($(LIB_DIR)\platform\objfre_*) do RD /S /Q "%%p"
+
+ndis-clean-all: ndis-stop ndis-clean
+	-RD /S /Q $(OUT_DIR)
+	-RD /S /Q $(DIST_DIR)
+
+test-mode-on:
+	bcdedit -set loadoptions DISABLE_INTEGRITY_CHECKS
+	bcdedit -set TESTSIGNING ON
+
+test-mode-off:
+	bcdedit -set loadoptions ENABLE_INTEGRITY_CHECKS
+	bcdedit -set TESTSIGNING OFF
 
 #install:
 #	install cert
