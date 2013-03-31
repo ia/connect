@@ -44,10 +44,8 @@
 
 /* ioctl related defines */
 #define  SIOCTL_TYPE            40000
-/* TODO: implement demo */
-#define  SIOCTL_TYPE        40000
-#define  IOCTL_SAMPLE_BFD   CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
-#define  IOCTL_SAMPLE_DIO   CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
+#define  IOCTL_SAMPLE_BFD       CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
+#define  IOCTL_SAMPLE_DIO_IN    CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
 
 /* inet proto related constants */
 #define  IPPROTO_ICMP       1   /* control message protocol      */
@@ -326,8 +324,8 @@ struct dev_ctx {
 	int      lock_open;  /* lock on NdisOpenAdapter in iface_open  */
 	int      lock_ready; /* lock on SIOCSIFADDR in dev_ioctl       */
 	/* TODO: l_ should be implemented */
-	nd_lock  l_rdrv;     /* ndis spin lock for dev_read/ndis_recv  */
-	nd_lock  l_wrsd;     /* ndis spin lock for dev_write/ndis_send */
+	nd_splock  l_rdrv;     /* ndis spin lock for dev_read/ndis_recv  */
+	nd_splock  l_wrsd;     /* ndis spin lock for dev_write/ndis_send */
 };
 
 
@@ -908,7 +906,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	}
 	
 	IRP_DONE(i, 0, NT_OK);
-	init_sending(dctx);
+//	init_sending(dctx);
 	DBG_OUT_R(NT_OK);
 }
 
@@ -1076,34 +1074,40 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 	switch (icode) {
 		case IOCTL_SAMPLE_BFD:
 			printm("IOCTL BFD >>");
-			printdbg("ubuf[0] = %02X", ubuf[0]);
-			printdbg("ubuf[1] = %02X", ubuf[1]);
-			printdbg("ubuf[2] = %02X", ubuf[2]);
-			printdbg("ubuf[3] = %02X", ubuf[3]);
-			ubuf[0] = 'I';
-			ubuf[1] = 'B';
-			ubuf[2] = 'F';
-			ubuf[3] = 'D';
+			printdbg("ibuf[0] = %02X", ibuf[0]);
+			printdbg("ibuf[1] = %02X", ibuf[1]);
+			printdbg("ibuf[2] = %02X", ibuf[2]);
+			printdbg("ibuf[3] = %02X", ibuf[3]);
+			ibuf[0] = 'I';
+			ibuf[1] = 'B';
+			ibuf[2] = 'F';
+			ibuf[3] = 'D';
+			if (i->UserBuffer) {
+				uchar *u = i->UserBuffer;
+				u[0] = 'I';
+				u[1] = 'B';
+				u[2] = 'F';
+				u[3] = 'D';
+			}
 			IRP_DONE(i, 0, NT_OK);
 			printm("IOCTL BFD <<");
 			break;
-		case IOCTL_SAMPLE_DIO:
-			printm("IOCTL DIO >>");
-			printdbg("ubuf[0] = %02X", ubuf[0]);
-			printdbg("ubuf[1] = %02X", ubuf[1]);
-			printdbg("ubuf[2] = %02X", ubuf[2]);
-			printdbg("ubuf[3] = %02X", ubuf[3]);
-			ubuf[0] = 'I';
-			ubuf[1] = 'D';
-			ubuf[2] = 'I';
-			ubuf[3] = 'O';
+		case IOCTL_SAMPLE_DIO_IN:
+			printm("IOCTL DIO IN >>");
+			printdbg("ibuf[0] = %02X", ibuf[0]);
+			printdbg("ibuf[1] = %02X", ibuf[1]);
+			printdbg("ibuf[2] = %02X", ibuf[2]);
+			printdbg("ibuf[3] = %02X", ibuf[3]);
+			ibuf[0] = 'I';
+			ibuf[1] = 'D';
+			ibuf[2] = 'I';
+			ibuf[3] = 'O';
 			IRP_DONE(i, 0, NT_OK);
-			printm("IOCTL DIO <<");
+			printm("IOCTL DIO IN <<");
 			break;
 		default:
 			IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
-			break;
-		
+			break;		
 	}
 	
 	DBG_OUT_R(NT_OK);
@@ -1113,6 +1117,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 nt_ret dev_close(dev_obj *dobj, irp *i)
 {
 	int n = 0;
+	int c = 0;
 	io_stack       *sl   = nt_irp_get_stack(i);
 	struct dev_ctx *dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
 	
@@ -1131,10 +1136,11 @@ nt_ret dev_close(dev_obj *dobj, irp *i)
 	for (n = 0; n < LIST_MAX; n++) {
 		if ((g_dev_list[n]) && (memcmp(g_dev_list[n]->name, SL_FNBUF(sl), LEN_IFACE_NAME) == 0)) {
 			g_dev_list[n] = NULL;
+			c = 1;
 		}
 	}
 	
-	if (n == LIST_MAX) {
+	if (!c) {
 		/* nothing to close */
 		IRP_DONE(i, 0, NT_OK);
 		DBG_OUT_R(NT_OK);
@@ -1191,7 +1197,7 @@ nt_ret iface_open(struct dev_ctx *dctx)
 	NdisOpenAdapter(&ret, &err, &(dctx->hndl), &mindex, &marray, 1, g_proto_hndl, (nd_hndl)dctx, &ifname_path, 0, NULL);
 	if ((!(IS_ND_OK(ret))) && (!(IS_NT_OK(ret)))) {
 		printmd("NdisOpenAdapter: error", ret);
-		if (ret = NDIS_STATUS_ADAPTER_NOT_FOUND) {
+		if (ret == NDIS_STATUS_ADAPTER_NOT_FOUND) {
 			printm("NdisOpenAdapter: adapter not found");
 		}
 		DBG_OUT_R(ret);
@@ -1443,11 +1449,11 @@ nt_ret DriverEntry(mod_obj *mobj, ustring *regpath)
 #include <stdlib.h>
 #include <string.h>
 
-#define  SIOCTL_TYPE        40000
-#define  IOCTL_SAMPLE_BFD   CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
-#define  IOCTL_SAMPLE_DIO   CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
+#define  SIOCTL_TYPE           40000
+#define  IOCTL_SAMPLE_BFD      CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
+#define  IOCTL_SAMPLE_DIO_IN   CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
 
-#define  STR_DEV_LEN    46*2
+//#define  STR_DEV_LEN    46*2
 #define  STR_DEV_LEN    38*sizeof(WCHAR)
 
 #define  LEN_IFACE_DEV  46*sizeof(WCHAR)
@@ -1456,8 +1462,11 @@ nt_ret DriverEntry(mod_obj *mobj, ustring *regpath)
 #define  ETH_ALEN       6         /* Octets in one ethernet addr	 */
 #define  PACKET_SIZE    64*1024
 
+#define  MTU            1514
+
 /*
  * TODO:
+ * - fix warnings
  * - clean up define section
  * - implement dev_write for sending
  * - split IRP/SL defines
@@ -1474,11 +1483,12 @@ struct user_irp {
 	wchar_t irp_data[STR_DEV_LEN];
 };
 
-int connect_packet_filter_test
+int connect_packet_filter_test(void)
 {
 	HANDLE hDevice;
 	HANDLE hInstance;
 	int i;
+	int c;
 	int n;
 	int ulen = 0;
 	int out_len = 0;
@@ -1507,26 +1517,61 @@ int connect_packet_filter_test
 		return 2;
 	}
 	
-	ubuf[0] = 0x1A;
-	ubuf[1] = 0x1B;
-	ubuf[2] = 0x1C;
-	ubuf[3] = 0x1D;
+	ubuf[0] = 'A';
+	ubuf[1] = 'B';
+	ubuf[2] = 'C';
+	ubuf[3] = 'D';
 	
-	if (!DeviceIoControl(hDevice,  IOCTL_HELLO, ubuf, PACKET_SIZE, out, PACKET_SIZE, &out_len, NULL)) {
-		printf("IOCTL dev error\n");
+	out[0] = '1';
+	out[1] = '2';
+	out[2] = '3';
+	out[3] = '4';
+
+	printf("bfd input:\n");
+	printf("BUF = %c %c %c %c\n", ubuf[0], ubuf[1], ubuf[2], ubuf[3]);
+	printf("OUT = %c %c %c %c\n", out[0], out[1], out[2], out[3]);
+	printf(" >>> bfd >>>\n");
+	if (!DeviceIoControl(hDevice, IOCTL_SAMPLE_BFD, ubuf, PACKET_SIZE, out, PACKET_SIZE, &out_len, NULL)) {
+		printf("IOCTL BFD dev error\n");
 	}
 	
-	ubuf[0] = 0x21;
-	ubuf[1] = 0x22;
-	ubuf[2] = 0x23;
-	ubuf[3] = 0x24;
+	printf("BUF = %c %c %c %c\n", ubuf[0], ubuf[1], ubuf[2], ubuf[3]);
+	printf("OUT = %c %c %c %c\n", out[0], out[1], out[2], out[3]);
+	printf(" <<< bfd <<<\n");
 	
-	if (!DeviceIoControl(hDevice2, IOCTL_HELLO, ubuf, PACKET_SIZE, out, PACKET_SIZE, &out_len, NULL)) {
-		printf("IOCTL dev2 error\n");
+	ubuf[0] = '6';
+	ubuf[1] = '7';
+	ubuf[2] = '8';
+	ubuf[3] = '9';
+	
+	out[0] = 'W';
+	out[1] = 'X';
+	out[2] = 'Y';
+	out[3] = 'Z';
+	
+	printf("dio input:\n");
+	printf("BUF = %c %c %c %c\n", ubuf[0], ubuf[1], ubuf[2], ubuf[3]);
+	printf("OUT = %c %c %c %c\n", out[0], out[1], out[2], out[3]);
+	printf(" >>> dio >>>\n");
+	if (!DeviceIoControl(hDevice, IOCTL_SAMPLE_DIO_IN, ubuf, PACKET_SIZE, out, PACKET_SIZE, &out_len, NULL)) {
+		printf("IOCTL DIO dev error\n");
 	}
+
+	printf("BUF = %c %c %c %c\n", ubuf[0], ubuf[1], ubuf[2], ubuf[3]);
+	printf("OUT = %c %c %c %c\n", out[0], out[1], out[2], out[3]);
+	printf(" <<< dio <<<\n");
 	
-	for (n = 0; n < 16; n++) {
-		//ZeroMemory(ubuf, PACKET_SIZE);
+	/* prepare for sending */
+	ZeroMemory(ubuf, PACKET_SIZE);
+	for (i = 6; i < MTU; i++, c++) {
+		ubuf[i] = c;
+	}
+	memset(ubuf, 0xFF, 6);
+	/* send packet using WriteFile */
+	WriteFile(hDevice, ubuf, MTU, &ulen, NULL);
+	
+	for (n = 0; n < 4; n++) {
+		ZeroMemory(ubuf, PACKET_SIZE);
 		
 		if (!ReadFile(hDevice, ubuf, PACKET_SIZE, &ulen, NULL)) {
 			printf("READ packet error\n");
