@@ -364,6 +364,9 @@ void     ndis_request       (nd_hndl protobind_ctx  , nd_req     *nreq     , nd_
 void     ndis_pnp           (nd_hndl protobind_ctx  , nd_pnp_ev  *pev);
 void     ndis_unload        (void);
 
+/* device helpers */
+nt_ret   dev_check    (io_stack  *sl, irp *i, uchar *ubuf, ulong *ulen, int IRP_MJ_TYPE);
+
 /* device callbacks */
 nt_ret   dev_open     (dev_obj *dobj, irp *i)           ;
 nt_ret   dev_read     (dev_obj *dobj, irp *i)           ;
@@ -750,6 +753,55 @@ void ndis_unload(void)
 /*** *** *** device callbacks *** *** ***/
 
 
+nt_ret dev_check(io_stack *sl, irp *i, uchar *ubuf, ulong *ulen, int IRP_MJ_TYPE)
+{
+	struct dev_ctx *dctx = NULL;
+	
+	if (!sl) {
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	if (DEV_NOT_READY(dctx)) {
+		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
+	if (i->MdlAddress) {
+		printm("direct_IO");
+		if ((!(ubuf = MmGetSystemAddressForMdlSafe(i->MdlAddress, NormalPagePriority))) && (i->UserBuffer)) {
+			printm("!mdl; user_buffer");
+			ubuf = i->UserBuffer;
+		}
+	}
+	
+	if (!ubuf) {
+		printm("buffered_IO");
+		ubuf = (uchar *) IRP_ASBUF(i);
+	}
+	
+	switch(IRP_MJ_TYPE) {
+		case IRP_MJ_READ:
+			*ulen = IRP_RBLEN(sl);
+			break;
+		case IRP_MJ_WRITE:
+			*ulen = IRP_WBLEN(sl);
+			break;
+		case IRP_MJ_DEVICE_CONTROL:
+			*ulen = IRP_IBLEN(sl);
+			break;
+		default:
+			*ulen = 0;
+			break;
+	}
+	
+	if ((!*ulen) || (!ubuf)) {
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
+	DBG_OUT_R(NT_OK);
+}
+
+
 nt_ret dev_open(dev_obj *dobj, irp *i)
 {
 	int       n = 0;
@@ -969,87 +1021,85 @@ nt_ret dev_write(dev_obj *dobj, irp *i)
 /* TODO: refactoring */
 nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 {
-	io_stack *sl;
-	ulong ctl_code;
-	struct dev_ctx *dctx;
-	
-	/* init associated system buffer */
-	uchar *ubuf = (uchar *)IRP_ASBUF(i);
+	nt_ret          r    = 0;
+	io_stack       *sl   = NULL;
+	struct dev_ctx *dctx = NULL;
+	ulong          *len;
+	uchar          *ibuf = NULL;
+	ulong           ilen = 0;
+	ulong           icode;
 	
 	DBG_IN;
 	
-	/* init current stack location for irp */
 	sl = nt_irp_get_stack(i);
+	/*
+	r = dev_check(sl, i, ibuf, len, IRP_MJ_DEVICE_CONTROL)
+	if (r != NT_OK) {
+		IRP_DONE(i, 0, r);
+		DBG_OUT_R(r);
+	}
+	ilen = *len;
+	*/
+	if (!sl) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
+	
+	dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
+	if (DEV_NOT_READY(dctx)) {
+		IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
+		DBG_OUT_R(STATUS_DEVICE_NOT_READY);
+	}
+	
+	if (i->MdlAddress) {
+		printm("direct_IO");
+		if ((!(ibuf = MmGetSystemAddressForMdlSafe(i->MdlAddress, NormalPagePriority))) && (i->UserBuffer)) {
+			printm("!mdl; user_buffer");
+			ibuf = i->UserBuffer;
+		}
+	}
+	
+	if (!ibuf) {
+		printm("buffered_IO");
+		ibuf = (uchar *) IRP_ASBUF(i);
+	}
+	
+	ilen = IRP_IBLEN(sl);
+	if ((!ilen) || (!ibuf)) {
+		IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
+		DBG_OUT_R(STATUS_INVALID_PARAMETER);
+	}
 	
 	/* get ioctl code */
-	ctl_code = IRP_IOCTL(sl);
+	icode = IRP_IOCTL(sl);
 	
-	switch (ctl_code) {
-		
-		case IOCTL_HELLO:
-			printm("IOCTL >>");
-			if (IRP_IBLEN(sl) && ubuf) {
-				printm("IOCTL: NT_OK");
-				printdbg("ubuf[0] = %02X", ubuf[0]);
-				printdbg("ubuf[1] = %02X", ubuf[1]);
-				printdbg("ubuf[2] = %02X", ubuf[2]);
-				printdbg("ubuf[3] = %02X", ubuf[3]);
-				IRP_DONE(i, 0, NT_OK);
-			} else {
-				printm("IOCTL: NT_ERR");
-				IRP_DONE(i, 0, NT_ERR);
-			}
-			printm("IOCTL <<");
+	switch (icode) {
+		case IOCTL_SAMPLE_BFD:
+			printm("IOCTL BFD >>");
+			printdbg("ubuf[0] = %02X", ubuf[0]);
+			printdbg("ubuf[1] = %02X", ubuf[1]);
+			printdbg("ubuf[2] = %02X", ubuf[2]);
+			printdbg("ubuf[3] = %02X", ubuf[3]);
+			ubuf[0] = 'I';
+			ubuf[1] = 'B';
+			ubuf[2] = 'F';
+			ubuf[3] = 'D';
+			IRP_DONE(i, 0, NT_OK);
+			printm("IOCTL BFD <<");
 			break;
-#if 0
-			if ((((struct user_irp *) ubuf)->irp_type) == IRP_IFACE) {
-				//iface_open((((struct user_irp *) ubuf)->irp_data), STR_DEV_LEN);
-				IRP_DONE(i, 0, NT_OK);
-			} else {
-				printm("IOCTL >>");
-				if (g_iface_ready) {
-					while (!g_packet_ready) {
-						continue;
-					}
-					nt_memzero(ubuf, IRP_IBLEN(sl));
-					nt_memcpy(ubuf, g_packet, g_packet_ready);
-					/* finish IRP request */
-					IRP_DONE(i, g_packet_ready, NT_OK);
-				} else {
-					IRP_DONE(i, 0, NT_OK);
-				}
-				printm("IOCTL <<");
-			}
+		case IOCTL_SAMPLE_DIO:
+			printm("IOCTL DIO >>");
+			printdbg("ubuf[0] = %02X", ubuf[0]);
+			printdbg("ubuf[1] = %02X", ubuf[1]);
+			printdbg("ubuf[2] = %02X", ubuf[2]);
+			printdbg("ubuf[3] = %02X", ubuf[3]);
+			ubuf[0] = 'I';
+			ubuf[1] = 'D';
+			ubuf[2] = 'I';
+			ubuf[3] = 'O';
+			IRP_DONE(i, 0, NT_OK);
+			printm("IOCTL DIO <<");
 			break;
-#endif
-		case SIOCSIFADDR:
-			dctx = (struct dev_ctx *)(sl->FileObject->FsContext);
-			
-			/* check device context: must be allocated and locked */
-			if (!dctx || !(dctx->lock_init) || !(dctx->lock_open)) {
-				IRP_DONE(i, 0, STATUS_DEVICE_NOT_READY);
-				break;
-				//DBG_OUT_R(STATUS_DEVICE_NOT_READY);
-			}
-			
-			/* check device status - otherwise already in use */
-			if (!dctx->lock_ready) {
-				IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
-				break;
-			}
-			
-			/* check len of MAC in input buffer */
-			if (IRP_IBLEN(sl) != ETH_ALEN) {
-				IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
-				break;
-				//DBG_OUT_R(STATUS_INVALID_PARAMETER);
-			}
-			
-			nt_memcpy(dctx->mac, ubuf, ETH_ALEN);
-			//ATOM(LOCK(dctx->lock_ready));
-			//init_sending(dctx);
-			break;
-			
 		default:
 			IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
 			break;
