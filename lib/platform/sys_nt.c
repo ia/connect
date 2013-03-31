@@ -45,9 +45,9 @@
 /* ioctl related defines */
 #define  SIOCTL_TYPE            40000
 /* TODO: implement demo */
-#define  IOCTL_DEMO_ODIRECT     CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_IN_DIRECT, FILE_READ_DATA | FILE_WRITE_DATA)
-#define  IOCTL_DEMO_BUFFERD     CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
-#define  SIOCSIFADDR            CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
+#define  SIOCTL_TYPE        40000
+#define  IOCTL_SAMPLE_BFD   CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
+#define  IOCTL_SAMPLE_DIO   CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
 
 /* inet proto related constants */
 #define  IPPROTO_ICMP       1   /* control message protocol      */
@@ -1393,9 +1393,9 @@ nt_ret DriverEntry(mod_obj *mobj, ustring *regpath)
 #include <stdlib.h>
 #include <string.h>
 
-#define  SIOCTL_TYPE    40000
-#define  IOCTL_HELLO    CTL_CODE(SIOCTL_TYPE, 0x800, METHOD_BUFFERED , FILE_READ_DATA | FILE_WRITE_DATA)
-#define  SIOCSIFADDR    CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_IN_DIRECT, FILE_ANY_ACCESS                 )
+#define  SIOCTL_TYPE        40000
+#define  IOCTL_SAMPLE_BFD   CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
+#define  IOCTL_SAMPLE_DIO   CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
 
 #define  STR_DEV_LEN    46*2
 #define  STR_DEV_LEN    38*sizeof(WCHAR)
@@ -1408,15 +1408,12 @@ nt_ret DriverEntry(mod_obj *mobj, ustring *regpath)
 
 /*
  * TODO:
+ * - clean up define section
  * - implement dev_write for sending
  * - split IRP/SL defines
  * - check and clean up duplicate/old/unused code
  * - critical sections for packet management
- * - iface_open/iface_close status/error management
  * - merging code with connect/ tree, integrating into build process
- * - generate full device string in kernel space
- * - fixing FILE_DEVICE_, adding DIRECT_IO in device extension
- * - extending ioctl's (_recv,_send,_open,_close,_file,...)
  * - adding autodetect of ifaces in user space
  * - adding file support in user/kernel space
  * - scripts for autobuild(nmake)/autosign(see msdn)
