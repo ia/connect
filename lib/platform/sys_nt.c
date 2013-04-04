@@ -15,8 +15,20 @@
 #define  PROTO_NDIS_MAJOR  5
 #define  PROTO_NDIS_MINOR  0
 
-/* includes */
+/* config */
+	/* instance management */
+#define INSTANCE_SINGLE             1
+#define INSTANCE_MULTI              2
+#define CONFIG_INSTANCE             INSTANCE_SINGLE
+#define CONFIG_INSTANCE_SINGLE      INSTANCE_SINGLE
+	/* management of locks for received packets */
+#define PACKETLOCK_DISABLED         1
+#define PACKETLOCK_TRANSFER         2
+#define PACKETLOCK_RECEIVE          3
+#define CONFIG_PACKETLOCK           PACKETLOCK_TRANSFER
+#define CONFIG_PACKETLOCK_TRANSFER  PACKETLOCK_TRANSFER
 
+/* includes */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -93,13 +105,13 @@
 #define nd_splock_unlock(lock          )    NdisReleaseSpinLock(          lock                     )
 #define nd_splock_free(  lock          )    NdisFreeSpinLock(             lock                     )
 
-#define LOCK(s   )    if(!s) s = 1
-#define UNLOCK(s )    if( s) s = 0
+#define ATOM_LOCK       nt_splock_lock(   &g_splock, &g_irq );
+#define ATOM_UNLOCK     nt_splock_unlock( &g_splock, g_irq  );
 
-#define ATOM_LOCK     nt_splock_lock(   &g_splock, &g_irq );
-#define ATOM_UNLOCK   nt_splock_unlock( &g_splock, g_irq  );
+#define ATOM(action)    nt_splock_lock(   &g_splock, &g_irq ); action; nt_splock_unlock(&g_splock, g_irq);
 
-#define ATOM(action)  nt_splock_lock(   &g_splock, &g_irq ); action; nt_splock_unlock(&g_splock, g_irq);
+#define LOCK_PACKET     printm("LOCK: PACKET"  ); nt_splock_lock(   &g_splock_p, &g_irq_p );
+#define UNLOCK_PACKET   printm("UNLOCK: PACKET"); nt_splock_unlock( &g_splock_p, g_irq_p  );
 
 	/* complex */
 #define nt_creat(mod, name, dev) \
@@ -310,22 +322,25 @@ struct packet_ctx {
 
 
 struct dev_ctx {
-	wchar_t  path[LEN_IFACE_PATH];
-	wchar_t  name[LEN_IFACE_NAME];
-	nd_hndl  hndl;
-	nd_hndl  buffer_pool;
-	nd_hndl  packet_pool;
-	uchar   *packet;
-	int      packet_rq;
-	int      packet_len;
-	nd_ret   status;
+	wchar_t          path[LEN_IFACE_PATH];
+	wchar_t          name[LEN_IFACE_NAME];
+	nd_hndl          hndl;
+	nd_hndl          buffer_pool;
+	nd_hndl          packet_pool;
+	uchar           *packet;
+	int              packet_rq;
+	int              packet_len;
+	nd_ret           status;
 	/* TODO: lock_ should be removed */
-	int      lock_init;  /* lock on init in dev_open               */
-	int      lock_open;  /* lock on NdisOpenAdapter in iface_open  */
-	int      lock_ready; /* lock on SIOCSIFADDR in dev_ioctl       */
+	int              lock_init;  /* lock on init in dev_open               */
+	int              lock_open;  /* lock on NdisOpenAdapter in iface_open  */
+	int              lock_ready; /* lock on SIOCSIFADDR in dev_ioctl       */
 	/* TODO: l_ should be implemented */
-	nd_splock  l_rdrv;     /* ndis spin lock for dev_read/ndis_recv  */
-	nd_splock  l_wrsd;     /* ndis spin lock for dev_write/ndis_send */
+	nd_splock        l_rdrv;     /* ndis spin lock for dev_read/ndis_recv  */
+	nd_splock        l_wrsd;     /* ndis spin lock for dev_write/ndis_send */
+	int              counter;
+	long volatile   *total_packets;
+	long volatile   *read_packets;
 };
 
 
@@ -405,11 +420,13 @@ nd_hndl            g_proto_hndl;
 nd_ev              g_closew_event;
 nt_splock          g_splock;
 irq                g_irq;
+nt_splock          g_splock_p;
+irq                g_irq_p;
 nd_phyaddr         g_phymax = NDIS_PHYSICAL_ADDRESS_CONST(-1,-1);
 
 #define LIST_MAX 8
 struct dev_ctx    *g_dev_list[LIST_MAX];
-
+long   volatile   *g_st_packets = 0;
 
 /*** *** *** helper functions *** *** ***/
 
@@ -434,24 +451,19 @@ int gettimeofday(struct timeval *tv)
 
 void ndis_packet_recv(struct dev_ctx *dctx, const uchar *packet, int len)
 {
-	//struct ip *iph = (struct ip *) (packet + sizeof(struct ether_header));
 	DBG_IN;
-	
+
+#ifdef CONFIG_PACKETLOCK_RECEIVE
+	LOCK_PACKET;
+#endif
 	/* ndis_lock rdrv*/
 	nt_memzero(dctx->packet, PACKET_SIZE);
 	memcpy(dctx->packet, packet, len);
 	dctx->packet_len = len;
 	/* ndis_release rdrv*/
-	
-	if (len == MTU) {
-		uchar *zero = nt_malloc(MTU);
-		nt_memzero(zero, MTU);
-		if (memcmp(packet, zero, MTU) == 0) {
-			printk("INIT PACKET HIT THE WIRE!!!1\n");
-		}
-		nt_free(zero);
-	}
-	
+#ifdef CONFIG_PACKETLOCK_RECEIVE
+	UNLOCK_PACKET;
+#endif
 	DBG_OUT_V;
 }
 
@@ -650,7 +662,10 @@ nt_ret ndis_recv(nd_hndl protobind_ctx, nd_hndl mac_ctx, void *hdr_buf, uint hdr
 						/* call the complete routine since it's not pending */
 						ndis_transfer(dctx, npacket, ret, tx_bytes);
 					}
-					
+					InterlockedIncrement(g_st_packets);
+					InterlockedIncrement(dctx->total_packets);
+					/* TODO: ZwWriteFile */
+					/* TODO: dev_read_cb */
 					DBG_OUT_R(ND_OK);
 				}
 				nt_free(RSRVD_PCKT_CTX(npacket)->phdr_buf);
@@ -694,7 +709,9 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	tbuf_len     = tx                                      ;
 	hdr_tbuf     = RSRVD_PCKT_CTX(tx_packet)->phdr_buf     ;
 	hdr_tbuf_len = RSRVD_PCKT_CTX(tx_packet)->phdr_buf_len ;
-	
+#ifdef CONFIG_PACKETLOCK_TRANSFER
+	LOCK_PACKET;
+#endif
 	if (tbuf && hdr_tbuf) {
 		uchar *pbuf = NULL;
 		pbuf = nt_malloc(hdr_tbuf_len + tbuf_len);
@@ -715,14 +732,19 @@ void ndis_transfer(nd_hndl protobind_ctx, nd_pack *tx_packet , nd_ret ret, uint 
 	
 	NdisReinitializePacket(tx_packet);
 	NdisFreePacket(tx_packet);
-	
+#ifdef CONFIG_PACKETLOCK_TRANSFER
+	UNLOCK_PACKET;
+#endif
+	/* TODO: try event */
 	while (dctx->packet_rq) {
 		continue;
 	}
 	
 	/* packet is gone here */
-	/* ATOM? */ dctx->packet_len = 0;
-	
+	/* ATOM? */
+#ifdef CONFIG_PACKETLOCK_RECEIVE
+	dctx->packet_len = 0;
+#endif
 	DBG_OUT_V;
 }
 
@@ -829,8 +851,15 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		if (g_dev_list[n]) {
 			printdbg("g_dev_list[n]->name == %ws\n", g_dev_list[n]->name);
 			if (memcmp(g_dev_list[n]->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME) == 0) {
+#ifdef CONFIG_INSTANCE_SINGLE
 				IRP_DONE(i, 0, STATUS_DEVICE_BUSY);
 				DBG_OUT_R(STATUS_DEVICE_BUSY);
+#else
+				#pragma warning("CONFIG_INSTANCE_MULTI")
+				g_dev_list[n]->counter++;
+				IRP_DONE(i, 0, NT_OK);
+				DBG_OUT_R(NT_OK);
+#endif
 			}
 		}
 	}
@@ -853,7 +882,7 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	}
 	nt_memzero(dctx, sizeof(struct dev_ctx));
 	
-	LOCK(dctx->lock_init);
+	dctx->lock_init = 1;
 	
 	printm("preparing buffer for packet");
 	dctx->packet = (uchar *) nt_malloc(PACKET_SIZE);
@@ -864,6 +893,19 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		DBG_OUT_R(STATUS_NO_MEMORY);
 	}
 	nt_memzero(dctx->packet, PACKET_SIZE);
+	
+	printm("preparing packet stats");
+	dctx->total_packets = nt_malloc(sizeof(long volatile));
+	dctx->read_packets = nt_malloc(sizeof(long volatile));
+	if (!dctx->total_packets || !dctx->read_packets) {
+		IRP_DONE(i, 0, STATUS_NO_MEMORY);
+		nt_free(dctx->packet);
+		nt_free(dctx);
+		dctx = NULL;
+		DBG_OUT_R(STATUS_NO_MEMORY);
+	}
+	*(dctx->total_packets) = 0;
+	*(dctx->read_packets) = 0;
 	
 	nt_memcpy(dctx->name, sl->FileObject->FileName.Buffer, LEN_IFACE_NAME);
 	g_dev_list[n] = dctx;
@@ -887,8 +929,8 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 		dctx = NULL;
 		DBG_OUT_R(r);
 	}
-		
-	LOCK(dctx->lock_open);
+	
+	dctx->lock_open = 1;
 	
 	sl->FileObject->FsContext = (void *) dctx;
 	
@@ -897,7 +939,8 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	printdbg("dctx->name       == %ws\n", dctx->name);
 	printdbg("dctx->path       == %ws\n", dctx->path);
 	
-	LOCK(dctx->lock_ready);
+	dctx->lock_ready = 1;
+	dctx->counter = 1;
 	
 	for (n = 0; n < LIST_MAX; n++) {
 		if (!(g_dev_list[n])) {
@@ -906,7 +949,6 @@ nt_ret dev_open(dev_obj *dobj, irp *i)
 	}
 	
 	IRP_DONE(i, 0, NT_OK);
-//	init_sending(dctx);
 	DBG_OUT_R(NT_OK);
 }
 
@@ -952,19 +994,25 @@ nt_ret dev_read(dev_obj *dobj, irp *i)
 		DBG_OUT_R(STATUS_INVALID_PARAMETER);
 	}
 	
+	/* TODO: try event */
 	while (!(dctx->packet_len)) {
 		continue;
 	}
 	
+	LOCK_PACKET;
 	/* ndis_lock rdrv */
 	dctx->packet_rq = 1;
 	len = (((rlen) <= (dctx->packet_len)) ? (rlen) : (dctx->packet_len));
 	nt_memzero(rbuf, rlen);
 	nt_memcpy(rbuf, dctx->packet, len);
 	dctx->packet_rq = 0;
+	InterlockedIncrement(dctx->read_packets);
 	/* ndis_release rdrv */
-	
+	UNLOCK_PACKET;
 	IRP_DONE(i, len, NT_OK);
+#ifdef CONFIG_PACKETLOCK_TRANSFER
+	dctx->packet_len = 0;
+#endif
 	DBG_OUT_R(NT_OK);
 }
 
@@ -1107,7 +1155,7 @@ nt_ret dev_ioctl(dev_obj *dobj, irp *i)
 			break;
 		default:
 			IRP_DONE(i, 0, STATUS_INVALID_PARAMETER);
-			break;		
+			break;
 	}
 	
 	DBG_OUT_R(NT_OK);
@@ -1135,8 +1183,13 @@ nt_ret dev_close(dev_obj *dobj, irp *i)
 	
 	for (n = 0; n < LIST_MAX; n++) {
 		if ((g_dev_list[n]) && (memcmp(g_dev_list[n]->name, SL_FNBUF(sl), LEN_IFACE_NAME) == 0)) {
-			g_dev_list[n] = NULL;
-			c = 1;
+			if (g_dev_list[n]->counter == 1) {
+				g_dev_list[n] = NULL;
+				c = 1;
+			} else {
+				g_dev_list[n]->counter--;
+				c = 0;
+			}
 		}
 	}
 	
@@ -1220,6 +1273,15 @@ void iface_close(struct dev_ctx *dctx)
 		DBG_OUT_VP(STATUS_DEVICE_NOT_READY);
 	}
 	
+	printdbg(" ============= NETSTAT ================");
+	printdbg("dctx->total_packets == %ld", *(dctx->total_packets));
+	printdbg("dctx->read_packets == %ld", *(dctx->read_packets));
+	printdbg("g_st_packets == %ld", *g_st_packets);
+	printdbg(" ============= NETSTAT ================");
+	
+	*(dctx->total_packets) = 0;
+	*(dctx->read_packets) = 0;
+	
 	printm("closing adapter for network interface");
 	NdisCloseAdapter(&ret, dctx->hndl);
 	if (ret == NDIS_STATUS_PENDING) {
@@ -1230,10 +1292,15 @@ void iface_close(struct dev_ctx *dctx)
 	dctx->lock_init  = 0;
 	dctx->lock_open  = 0;
 	dctx->lock_ready = 0;
+	dctx->counter = 0;
 	
 	NdisFreeBufferPool(dctx->buffer_pool);
 	NdisFreePacketPool(dctx->packet_pool);
 	
+	nt_free(dctx->total_packets);
+	dctx->total_packets = NULL;
+	nt_free(dctx->read_packets);
+	dctx->read_packets = NULL;
 	nt_free(dctx->packet);
 	dctx->packet = NULL;
 	nt_free(dctx);
@@ -1294,6 +1361,10 @@ nt_ret init_ndis(mod_obj *mobj)
 	
 	printm("init global spinlock");
 	nt_splock_init(&g_splock);
+	nt_splock_init(&g_splock_p);
+	
+	g_st_packets = nt_malloc(sizeof(long volatile));
+	*g_st_packets = 0;
 	
 	DBG_OUT_R(NT_OK);
 }
@@ -1443,25 +1514,26 @@ nt_ret DriverEntry(mod_obj *mobj, ustring *regpath)
 
 #pragma message("SYS_NT: user space")
 
+/* includes */
 #include <stdio.h>
 #include <windows.h>
 #include <winioctl.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* ioctl */
 #define  SIOCTL_TYPE           40000
 #define  IOCTL_SAMPLE_BFD      CTL_CODE(SIOCTL_TYPE, 0x801, METHOD_BUFFERED , FILE_ANY_ACCESS)
 #define  IOCTL_SAMPLE_DIO_IN   CTL_CODE(SIOCTL_TYPE, 0x802, METHOD_IN_DIRECT, FILE_ANY_ACCESS)
 
-//#define  STR_DEV_LEN    46*2
+/* len for device names */
 #define  STR_DEV_LEN    38*sizeof(WCHAR)
-
 #define  LEN_IFACE_DEV  46*sizeof(WCHAR)
 #define  LEN_IFACE      38*sizeof(WCHAR)
 
-#define  ETH_ALEN       6         /* Octets in one ethernet addr	 */
+/* len for network routine */
+#define  ETH_ALEN       6         /* Octets in one ethernet addr */
 #define  PACKET_SIZE    64*1024
-
 #define  MTU            1514
 
 /*
@@ -1516,7 +1588,7 @@ int connect_packet_filter_test(void)
 		printf("CREAT multiple instance error\n");
 		return 2;
 	}
-	
+#if 0
 	ubuf[0] = 'A';
 	ubuf[1] = 'B';
 	ubuf[2] = 'C';
@@ -1569,8 +1641,9 @@ int connect_packet_filter_test(void)
 	memset(ubuf, 0xFF, 6);
 	/* send packet using WriteFile */
 	WriteFile(hDevice, ubuf, MTU, &ulen, NULL);
+#endif
 	
-	for (n = 0; n < 4; n++) {
+	for (n = 0; n < 50; n++) {
 		ZeroMemory(ubuf, PACKET_SIZE);
 		
 		if (!ReadFile(hDevice, ubuf, PACKET_SIZE, &ulen, NULL)) {
