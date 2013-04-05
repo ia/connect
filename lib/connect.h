@@ -86,13 +86,15 @@ CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*ca
 
 /* TODO: split to platform-specific, fix declarations */
 
-CNCT_EXPORT  socket_t        cnct_packet_socket    (int engine, int proto);
-CNCT_EXPORT  socket_t        cnct_packet_recv_init (int engine, char *iface, int proto, char *rule);
-CNCT_EXPORT  ssize_t         cnct_packet_recv      (socket_t sd, unsigned char *packet, size_t len);
-//CNCT_EXPORT  int             cnct_packet_dump   (int engine, char *iface, int proto, char *rule);
-CNCT_EXPORT  int             cnct_packet_dump      (int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
-//CNCT_EXPORT  int             cnct_packet_print     (char *packet, int len);
-CNCT_EXPORT  int             cnct_packet_print     (unsigned char *packet, int proto, ssize_t len);
+CNCT_EXPORT  int             cnct_packet_print    (unsigned char *packet, int proto, ssize_t len);
+CNCT_EXPORT  int             cnct_packet_dump     (int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
+/* loop slot */
+CNCT_EXPORT  socket_t        cnct_packet_open     (int engine,  char *iface, int proto,   char *rule);
+CNCT_EXPORT  ssize_t         cnct_packet_recv     (socket_t ps, unsigned char   *packet, size_t len);
+CNCT_EXPORT  ssize_t         cnct_packet_send     (socket_t ps, unsigned char   *packet, size_t len);
+CNCT_EXPORT  int             cnct_packet_close    (socket_t ps);
+
+
 /* network interfaces functions */
 
 

@@ -1,10 +1,9 @@
 
+
 #include "../connect.h"
 
-//#include <linux/if_ether.h>
-//#include <linux/filter.h>
 
-int cnct_filter_bpf(char *iface, socket_t sd)
+int sys_filter_bpf(socket_t sd)
 {
 	struct sock_filter bpf[] = { CNCT_BPF_PCKT };
 	struct sock_fprog fprog;
@@ -21,53 +20,24 @@ int cnct_filter_bpf(char *iface, socket_t sd)
 	return 0;
 }
 
-socket_t cnct_packet_socket(int engine, int proto)
+
+int sys_filter_bind(char *iface)
 {
 	LOG_IN;
-	
-	int rs;
-	
-	if (engine == CNCT_PACKENGINE_BPF) {
-		rs = socket(CNCT_SOCKET_RAW);
-	//	rs = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP));
-		if (cnct_filter_bpf(NULL, rs)) {
-			return -1;
-		}
-	} else {
-		(proto == IPPROTO_RAW) ? (rs = socket(CNCT_SOCKET_RAW)) : (rs = socket(CNCT_SOCKET_IP));
+	if (iface) {
+	/* TOOD: implement
+	bind(...)
+	*/
 	}
-	
-	if (rs == CNCT_INVALID) {
-		perror("socket");
-		LOG_OUT_RET(-1);
-	}
-	
 	LOG_OUT;
-	
-	return rs;
+	return 0;
 }
 
-ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
-{
-	LOG_IN;
-	LOG_OUT_RET(recvfrom(rs, packet, len, 0, NULL, NULL));
-	//int rx = 0;
-	
-	//MALLOC_TYPE_SIZE(char, packet, cnct_mtu);
-	
-	//while (1) {
-	//	memset(packet, '\0', cnct_mtu);
-	//int rx = recvfrom(rs, packet, cnct_mtu, 0, NULL, NULL);
-	//	cnct_packet_print(packet, proto, rx);
-		//break;
-	//}
-}
 
-socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
+socket_t cnct_packet_open(int engine, char *iface, int proto, char *rule)
 {
 	LOG_IN;
-	
-	socket_t rs;
+	socket_t ps;
 	
 	if (rule) {
 		engine = CNCT_PACKENGINE_PCP;
@@ -81,42 +51,62 @@ socket_t cnct_packet_recv_init(int engine, char *iface, int proto, char *rule)
 		proto = IPPROTO_RAW;
 	}
 	
+	/* TODO: implement IS_SOCKET_VALID define */
 	switch (engine) {
 		case CNCT_PACKENGINE_PCP:
-			cnct_filter_pcp(rule);
+			/* cnct_filter_pcp(rule); */
+			printf("error: not implemented\n");
+			LOG_OUT_RET(1);
 			break;
 		case CNCT_PACKENGINE_BPF:
-			/* TODO: implement call for `cnct_filter_bpf' when engine is BPF,
-			 * packet socket management refactoring required */
-		case CNCT_PACKENGINE_USR:
-			rs = cnct_packet_socket(engine, proto);
-			if (rs == CNCT_INVALID) {
+			ps = socket(CNCT_SOCKET_RAW);
+			if (ps == CNCT_INVALID) {
 				printf("error: can't set socket for dump\n");
 				LOG_OUT_RET(1);
 			}
+			if (iface) { sys_filter_bind(iface) ? ps = -1 : 0 ; }
+			if (sys_filter_bpf(ps)) {
+				printf("error: can't set socket for dump\n");
+				LOG_OUT_RET(1);
+			}
+			break;
+		case CNCT_PACKENGINE_USR:
+			(proto == IPPROTO_RAW) ? (ps = socket(CNCT_SOCKET_RAW)) : (ps = socket(CNCT_SOCKET_IP));
+			if (ps == CNCT_INVALID) {
+				printf("error: can't set socket for dump\n");
+				LOG_OUT_RET(1);
+			}
+			if (iface) { sys_filter_bind(iface); }
 			break;
 		default:
 			printf("engine not supported\n");
 			LOG_OUT_RET(1);
 			break;
 	}
-	/*
-	if (engine == CNCT_PACKENGINE_PCP) {
-		cnct_filter_pcp(rule);
-	} else if ((engine == CNCT_PACKENGINE_USR) || (engine == CNCT_PACKENGINE_BPF)) {
-		if ((rs = cnct_packet_socket(engine, proto)) == CNCT_INVALID) {
-			printf("error: can't set socket for dump\n");
-			LOG_OUT_RET(1);
-		}
-	} else {
-		printf("engine not supported\n");
-		LOG_OUT_RET(1);
-	}
-	*/
-	// cnct_packet_recv(proto, rs);
 	
 	LOG_OUT;
-	
-	return rs;
+	return ps;
 }
+
+
+ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
+{
+	LOG_IN;
+	LOG_OUT_RET(recvfrom(rs, packet, len, 0, NULL, NULL));
+}
+
+
+ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len)
+{
+	LOG_IN;
+	LOG_OUT_RET(sendto(ss, packet, len, 0, NULL, 0));
+}
+
+
+int cnct_packet_close(socket_t cs)
+{
+	LOG_IN;
+	LOG_OUT_RET(close(cs));
+}
+
 
