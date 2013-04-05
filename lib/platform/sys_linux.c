@@ -99,7 +99,21 @@ ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
 ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len)
 {
 	LOG_IN;
-	LOG_OUT_RET(sendto(ss, packet, len, 0, NULL, 0));
+	struct sockaddr_ll sa;
+	sa.sll_family = PF_PACKET;
+	sa.sll_protocol = htons(ETH_P_IP);
+	sa.sll_ifindex = 2;
+	sa.sll_hatype = ARPHRD_ETHER;
+	sa.sll_pkttype = PACKET_OTHERHOST;
+	sa.sll_halen = ETH_ALEN;
+	
+	memset(sa.sll_addr, 0xFF, 8);
+	
+	int r = sendto(ss, packet, len, 0, (struct sockaddr *) &sa, sizeof(sa));
+	if (r == -1) {
+		perror("sendto");
+	}
+	LOG_OUT;
 }
 
 

@@ -208,6 +208,23 @@ int demo_usrdump(const char *argv[])
 	return 0;
 }
 
+/* stand alone connect API based sample for sending packet using raw socket */
+int demo_usrsend(const char *argv[])
+{
+	/* engine, interface, proto, rule */
+	int s = cnct_packet_open(CNCT_PACKENGINE_USR, NULL, 0, NULL);
+	int mtu = 1504;
+	unsigned char *packet = (unsigned char *) malloc(mtu);
+	if (!packet) {
+		perror("malloc");
+		return errno;
+	}
+	memset(packet, 0xFF, mtu);
+	cnct_packet_send(s, packet, mtu);
+	cnct_packet_close(s);
+	return 0;
+}
+
 /* usage helper */
 int usage(const char *name)
 {
@@ -220,6 +237,7 @@ int usage(const char *name)
 	printf("\t\tudpserver  port\n");
 	printf("\t\tbpfdump\n");
 	printf("\t\tusrdump\n");
+	printf("\t\tusrsend\n");
 	return 0;
 }
 
@@ -251,6 +269,8 @@ int main(int argc, const char *argv[])
 		demo_bpfdump(argv);
 	} else if (strcmp(argv[1], "usrdump") == 0) {
 		demo_usrdump(argv);
+	} else if (strcmp(argv[1], "usrsend") == 0) {
+		demo_usrsend(argv);
 	} else {
 		return usage(argv[0]);
 	}

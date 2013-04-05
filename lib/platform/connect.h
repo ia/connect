@@ -217,6 +217,7 @@
 
 #ifndef CNCT_SOCKET_RAW
 	#define CNCT_SOCKET_RAW    AF_INET, SOCK_RAW, IPPROTO_RAW
+//	#define CNCT_SOCKET_RAW    AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)
 #endif
 
 #ifndef CNCT_SOCKET_IP

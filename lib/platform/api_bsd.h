@@ -53,6 +53,9 @@
 
 #ifdef CNCT_SYS_LINUX
 	#include <linux/filter.h>
+	#include <linux/if_packet.h>
+	#include <linux/if_ether.h>
+//	#include <linux/if_arp.h>
 #endif
 
 #ifdef CNCT_SYS_BSD
