@@ -96,23 +96,43 @@ ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
 }
 
 
-ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len)
+ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len, char *iface)
 {
 	LOG_IN;
-	struct sockaddr_ll sa;
-	sa.sll_family = PF_PACKET;
-	sa.sll_protocol = htons(ETH_P_IP);
-	sa.sll_ifindex = 2;
-	sa.sll_hatype = ARPHRD_ETHER;
-	sa.sll_pkttype = PACKET_OTHERHOST;
-	sa.sll_halen = ETH_ALEN;
 	
-	memset(sa.sll_addr, 0xFF, 8);
+	struct sockaddr_ll sa;
+	struct ifreq if_idx;
+	struct ifreq if_mac;
+	struct ether_header *eh = (struct ether_header *) packet;
+	
+	/* Get the index of the interface to send on */
+	memset(&if_idx, 0, sizeof(struct ifreq));
+	strncpy(if_idx.ifr_name, (iface ? iface : "lo"), strlen(iface));
+	if (ioctl(ss, SIOCGIFINDEX, &if_idx) < 0) {
+		perror("SIOCGIFINDEX");
+	}
+	
+	/* Get the MAC address of the interface to send on */
+	memset(&if_mac, 0, sizeof(struct ifreq));
+	strncpy(if_mac.ifr_name, (iface ? iface : "lo"), strlen(iface));
+	if (ioctl(ss, SIOCGIFHWADDR, &if_mac) < 0) {
+		perror("SIOCGIFHWADDR");
+	}
+	
+	eh->ether_shost[0] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[0];
+	eh->ether_shost[1] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[1];
+	eh->ether_shost[2] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[2];
+	eh->ether_shost[3] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[3];
+	eh->ether_shost[4] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4];
+	eh->ether_shost[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
+	
+	sa.sll_ifindex = if_idx.ifr_ifindex;
 	
 	int r = sendto(ss, packet, len, 0, (struct sockaddr *) &sa, sizeof(sa));
 	if (r == -1) {
 		perror("sendto");
 	}
+	
 	LOG_OUT;
 }
 

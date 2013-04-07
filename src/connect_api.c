@@ -220,7 +220,7 @@ int demo_usrsend(const char *argv[])
 		return errno;
 	}
 	memset(packet, 0xFF, mtu);
-	cnct_packet_send(s, packet, mtu);
+	cnct_packet_send(s, packet, mtu, (argv[2] ? argv[2] : "lo"));
 	cnct_packet_close(s);
 	return 0;
 }
