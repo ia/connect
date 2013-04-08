@@ -16,10 +16,81 @@ packet_loop(n, callback)
 #include "connect.h"
 
 
+socket_t cnct_packet_open(int engine, char *iface, int proto, char *rule)
+{
+	return sys_packet_open(engine, iface, proto, rule);
+}
+
+
+ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
+{
+	return sys_packet_recv(rs, packet, len);
+}
+
+
+ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len, char *iface)
+{
+	return sys_packet_send(ss, packet, len, iface);
+}
+
+
+socket_t cnct_packet_close(socket_t cs)
+{
+	return sys_packet_close(cs);
+}
+
+
+int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *, int, ssize_t))
+{
+	LOG_IN;
+	
+	if (!callback) {
+		callback = &cnct_packet_print;
+	}
+	
+	socket_t rs = cnct_packet_open(engine, iface, proto, rule);
+	/* TODO: cnct_packet_len */
+	
+	ssize_t rx = 0;
+	
+	/* TODO: fix this crap; implement cnct_iface_getlen */
+	size_t len = 0;
+#ifdef CNCT_SYS_BSD
+	if (ioctl(rs, BIOCGBLEN, &len) < 0) {
+		perror("ioctl");
+		return errno;
+	}
+#else
+	len = cnct_mtu;
+#endif
+	
+	DBG_INFO(printf("\nLEN == %zd\n", len);)
+	MALLOC_TYPE_SIZE(unsigned char, packet, len);
+	
+	(void) memset(packet, '\0', len);
+	DBG_INFO(printf("\nRX --->\n");)
+	rx = cnct_packet_recv(rs, packet, len);
+	DBG_INFO(printf("\nRX <---\n");)
+	if (rx == -1) {
+		perror("dump: recv");
+	} else if (rx == 0) {
+		printf("dump: client shutdown\n");
+	} else {
+		DBG_INFO(printf("\ncallback --->\n");)
+		(*callback)(packet, proto, rx);
+		DBG_INFO(printf("\ncallback <---\n");)
+	}
+	
+	LOG_OUT;
+	
+	return 0;
+}
+
+
 int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 {
 	LOG_IN;
-	ssize_t i;
+	UNUSED(proto);
 	
 	if (len > 14) {
 		// dump ethernet header:
@@ -70,53 +141,6 @@ int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 	}
 	
 	LOG_OUT;
-	return 0;
-}
-
-
-int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *, int, ssize_t))
-{
-	LOG_IN;
-	
-	if (!callback) {
-		callback = &cnct_packet_print;
-	}
-	
-	socket_t rs = cnct_packet_open(engine, iface, proto, rule);
-	/* TODO: cnct_packet_len */
-	
-	ssize_t rx = 0;
-	
-	/* TODO: fix this crap; implement cnct_iface_getlen */
-	size_t len = 0;
-#ifdef CNCT_SYS_BSD
-	if (ioctl(rs, BIOCGBLEN, &len) < 0) {
-		perror("ioctl");
-		return errno;
-	}
-#else
-	len = cnct_mtu;
-#endif
-	
-	DBG_INFO(printf("\nLEN == %zd\n", len);)
-	MALLOC_TYPE_SIZE(unsigned char, packet, len);
-	
-	(void) memset(packet, '\0', len);
-	DBG_INFO(printf("\nRX --->\n");)
-	rx = cnct_packet_recv(rs, packet, len);
-	DBG_INFO(printf("\nRX <---\n");)
-	if (rx == -1) {
-		perror("dump: recv");
-	} else if (rx == 0) {
-		printf("dump: client shutdown\n");
-	} else {
-		DBG_INFO(printf("\ncallback --->\n");)
-		(*callback)(packet, proto, rx);
-		DBG_INFO(printf("\ncallback <---\n");)
-	}
-	
-	LOG_OUT;
-	
 	return 0;
 }
 

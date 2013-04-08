@@ -59,6 +59,8 @@ int nc_client_tcp(int argc, const char *argv[])
 /* server callback */
 int your_udp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client, cnct_sockdata_t udp_data)
 {
+	UNUSED(socket);
+	
 	printf("server socket: %d\n", sd);
 	
 	printf("recv msg[%d]: %s\n", udp_data.len, udp_data.data);
@@ -93,6 +95,8 @@ int demo_udp_server(const char *argv[])
 /* server callback */
 int your_tcp_server(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage client, cnct_sockdata_t udp_data)
 {
+	UNUSED(client);
+	
 	if (udp_data.len != -1) {
 		printf("something goes wrong\n");
 	}
@@ -202,6 +206,7 @@ int demo_bpfdump(const char *argv[])
 /* stand alone connect API based sample for dumping packets using raw socket */
 int demo_usrdump(const char *argv[])
 {
+	UNUSED(argv);
 	/* engine, interface, proto, rule */
 	cnct_packet_dump(CNCT_PACKENGINE_USR, NULL, 0, NULL, NULL);
 	//cnct_packet_recv();
@@ -220,7 +225,7 @@ int demo_usrsend(const char *argv[])
 		return errno;
 	}
 	memset(packet, 0xFF, mtu);
-	cnct_packet_send(s, packet, mtu, (argv[2] ? argv[2] : "lo"));
+	cnct_packet_send(s, packet, mtu, (char *)(argv[2] ? argv[2] : "lo"));
 	cnct_packet_close(s);
 	return 0;
 }

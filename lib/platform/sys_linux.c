@@ -34,7 +34,7 @@ int sys_filter_bind(char *iface)
 }
 
 
-socket_t cnct_packet_open(int engine, char *iface, int proto, char *rule)
+inline socket_t sys_packet_open(int engine, char *iface, int proto, char *rule)
 {
 	LOG_IN;
 	socket_t ps;
@@ -89,14 +89,14 @@ socket_t cnct_packet_open(int engine, char *iface, int proto, char *rule)
 }
 
 
-ssize_t cnct_packet_recv(socket_t rs, unsigned char *packet, size_t len)
+inline ssize_t sys_packet_recv(socket_t rs, unsigned char *packet, size_t len)
 {
 	LOG_IN;
 	LOG_OUT_RET(recvfrom(rs, packet, len, 0, NULL, NULL));
 }
 
 
-ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len, char *iface)
+inline ssize_t sys_packet_send(socket_t ss, unsigned char *packet, size_t len, char *iface)
 {
 	LOG_IN;
 	
@@ -133,11 +133,11 @@ ssize_t cnct_packet_send(socket_t ss, unsigned char *packet, size_t len, char *i
 		perror("sendto");
 	}
 	
-	LOG_OUT;
+	LOG_OUT_RET(r);
 }
 
 
-int cnct_packet_close(socket_t cs)
+inline int sys_packet_close(socket_t cs)
 {
 	LOG_IN;
 	LOG_OUT_RET(close(cs));

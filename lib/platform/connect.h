@@ -224,13 +224,27 @@
 	#define CNCT_SOCKET_IP    AF_INET, SOCK_RAW, IPPROTO_IP
 #endif
 
+/* disable `unused variable' warning macro */
+#ifndef UNUSED
+#	define UNUSED(var) (var) = (var)
+#endif
+
 /* *** */
+
 
 static const int cnct_api = CNCT_API;
 static const int cnct_sys = CNCT_SYS;
 
-/* export, but not for external usage */
-CNCT_EXPORT  int cnct_filter_bpf (char *iface, socket_t sd);
+
+/* declaration of internal functions */
+int       sys_filter_bpf ( socket_t sd);
+int       sys_filter_bind(              char *iface);
+socket_t  sys_packet_open( int engine,  char *iface, int proto, char *rule);
+ssize_t   sys_packet_recv( socket_t rs, unsigned char *packet, size_t len);
+ssize_t   sys_packet_send( socket_t ss, unsigned char *packet, size_t len, char *iface);
+int       sys_packet_close(socket_t cs);
+
 
 #endif /* _PLATFORM_H_ */
+
 
