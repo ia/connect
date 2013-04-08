@@ -184,3 +184,28 @@ inline int sys_packet_close(socket_t cs)
 }
 
 
+inline int sys_packet_stats(socket_t ss)
+{
+	LOG_IN;
+	struct tpacket_stats st;
+	st.tp_packets = 0;
+	st.tp_drops = 0;
+	struct tpacket_stats kstats;
+	socklen_t len = sizeof(struct tpacket_stats);
+	if (getsockopt(ss, SOL_PACKET, PACKET_STATISTICS, &kstats, &len) == -1) {
+		if (errno == ENOTSUP) {
+			LOG_OUT_RET(0);
+		}
+		perror("getsockopt");
+		LOG_OUT_RET(1);
+	}
+	
+	st.tp_packets += kstats.tp_packets;
+	st.tp_drops += kstats.tp_drops;
+	printf("tp_packets = %d\n", st.tp_packets);
+	printf("tp_drops = %d\n", st.tp_drops);
+	LOG_OUT;
+	return 0;
+}
+
+

@@ -40,6 +40,12 @@ socket_t cnct_packet_close(socket_t cs)
 }
 
 
+int cnct_packet_stats(socket_t ss)
+{
+	return sys_packet_stats(ss);
+}
+
+
 int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *, int, ssize_t))
 {
 	LOG_IN;
@@ -122,7 +128,8 @@ int cnct_packet_loop(int engine, char *iface, int proto, char *rule, int (*callb
 	
 	DBG_INFO(printf("\nLEN == %zd\n", len);)
 	MALLOC_TYPE_SIZE(unsigned char, packet, len);
-	
+	int tp_recv = 0;
+	cnct_packet_stats(rs); /* reset stats */
 	while (!g_cnct_kill) {
 		(void) memset(packet, '\0', len);
 		DBG_INFO(printf("\nRX --->\n");)
@@ -136,9 +143,14 @@ int cnct_packet_loop(int engine, char *iface, int proto, char *rule, int (*callb
 		} else {
 			DBG_INFO(printf("\ncallback --->\n");)
 			(*callback)(packet, proto, rx);
+			tp_recv++;
 			DBG_INFO(printf("\ncallback <---\n");)
 		}
 	}
+	
+	printf("tp_recv = %d\n", tp_recv);
+	cnct_packet_stats(rs);
+	cnct_packet_close(rs);
 	
 	LOG_OUT;
 	

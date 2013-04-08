@@ -244,6 +244,7 @@ socket_t    sys_packet_open( int engine,  char *iface, int proto, char *rule);
 ssize_t     sys_packet_recv( socket_t rs, unsigned char *packet, size_t len);
 ssize_t     sys_packet_send( socket_t ss, unsigned char *packet, size_t len, char *iface);
 int         sys_packet_close(socket_t cs);
+int         sys_packet_stats(socket_t ss);
 int         sys_signal      (void);
 
 

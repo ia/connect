@@ -63,6 +63,7 @@ int          cnct_socket_setnonblock (socket_t sd);
 
 CNCT_EXPORT  int cnct_sockdata_print (char *msg, int size, int len);
 
+
 /* high level socket functions */
 
 CNCT_EXPORT  cnct_socket_t  *cnct_socket_create   (char *host, char *port, int ipv, int type, int reuse, int autoclose, int flags);
@@ -82,21 +83,23 @@ CNCT_EXPORT  int             cnct_socket_shutdown (socket_t socket);
 
 CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*callback)(cnct_socket_t *socket, socket_t sd, struct sockaddr_storage, cnct_sockdata_t));
 
+
 /* high level packet funtions */
 
-/* TODO: split to platform-specific, fix declarations */
-
 CNCT_EXPORT  int             cnct_packet_print    (unsigned char *packet, int proto, ssize_t len);
-CNCT_EXPORT  int             cnct_packet_dump     (int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
-CNCT_EXPORT  int             cnct_packet_loop     (int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
-CNCT_EXPORT  socket_t        cnct_packet_open     (int engine,  char *iface, int proto,   char *rule);
+CNCT_EXPORT  int             cnct_packet_dump     (int engine,  char *iface, int proto,  char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
+CNCT_EXPORT  int             cnct_packet_loop     (int engine,  char *iface, int proto,  char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
+CNCT_EXPORT  socket_t        cnct_packet_open     (int engine,  char *iface, int proto,  char *rule);
 CNCT_EXPORT  ssize_t         cnct_packet_recv     (socket_t ps, unsigned char   *packet, size_t len);
 CNCT_EXPORT  ssize_t         cnct_packet_send     (socket_t ps, unsigned char   *packet, size_t len, char *iface);
 CNCT_EXPORT  int             cnct_packet_close    (socket_t ps);
+CNCT_EXPORT  int             cnct_packet_stats    (socket_t ps);
 
 
+/* TODO: */
 /* network interfaces functions */
 
 
 #endif /* _LIBCONNECT_H_ */
+
 
