@@ -230,6 +230,15 @@ int demo_usrsend(const char *argv[])
 	return 0;
 }
 
+/* stand alone connect API based sample for dumping packets using raw socket */
+int demo_bpfloop(const char *argv[])
+{
+	/* engine, interface, proto, rule */
+	cnct_packet_loop(CNCT_PACKENGINE_BPF, (char *)(argv[2] ? argv[2] : "lo"), 0, NULL, NULL);
+	//cnct_packet_recv();
+	return 0;
+}
+
 /* usage helper */
 int usage(const char *name)
 {
@@ -243,6 +252,7 @@ int usage(const char *name)
 	printf("\t\tbpfdump\n");
 	printf("\t\tusrdump\n");
 	printf("\t\tusrsend\n");
+	printf("\t\tbpfloop\n");
 	return 0;
 }
 
@@ -276,6 +286,8 @@ int main(int argc, const char *argv[])
 		demo_usrdump(argv);
 	} else if (strcmp(argv[1], "usrsend") == 0) {
 		demo_usrsend(argv);
+	} else if (strcmp(argv[1], "bpfloop") == 0) {
+		demo_bpfloop(argv);
 	} else {
 		return usage(argv[0]);
 	}

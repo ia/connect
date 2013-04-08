@@ -88,7 +88,7 @@ CNCT_EXPORT  int             cnct_socket_server   (cnct_socket_t *sckt, int (*ca
 
 CNCT_EXPORT  int             cnct_packet_print    (unsigned char *packet, int proto, ssize_t len);
 CNCT_EXPORT  int             cnct_packet_dump     (int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
-/* loop slot */
+CNCT_EXPORT  int             cnct_packet_loop     (int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *packet, int proto, ssize_t len));
 CNCT_EXPORT  socket_t        cnct_packet_open     (int engine,  char *iface, int proto,   char *rule);
 CNCT_EXPORT  ssize_t         cnct_packet_recv     (socket_t ps, unsigned char   *packet, size_t len);
 CNCT_EXPORT  ssize_t         cnct_packet_send     (socket_t ps, unsigned char   *packet, size_t len, char *iface);

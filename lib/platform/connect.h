@@ -232,17 +232,19 @@
 /* *** */
 
 
+int g_cnct_kill;
 static const int cnct_api = CNCT_API;
 static const int cnct_sys = CNCT_SYS;
 
 
 /* declaration of internal functions */
-int       sys_filter_bpf ( socket_t sd);
-int       sys_filter_bind(              char *iface);
-socket_t  sys_packet_open( int engine,  char *iface, int proto, char *rule);
-ssize_t   sys_packet_recv( socket_t rs, unsigned char *packet, size_t len);
-ssize_t   sys_packet_send( socket_t ss, unsigned char *packet, size_t len, char *iface);
-int       sys_packet_close(socket_t cs);
+int         sys_filter_bpf ( socket_t sd);
+int         sys_filter_bind(              char *iface);
+socket_t    sys_packet_open( int engine,  char *iface, int proto, char *rule);
+ssize_t     sys_packet_recv( socket_t rs, unsigned char *packet, size_t len);
+ssize_t     sys_packet_send( socket_t ss, unsigned char *packet, size_t len, char *iface);
+int         sys_packet_close(socket_t cs);
+int         sys_signal      (void);
 
 
 #endif /* _PLATFORM_H_ */

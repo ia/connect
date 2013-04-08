@@ -87,6 +87,65 @@ int cnct_packet_dump(int engine, char *iface, int proto, char *rule, int (*callb
 }
 
 
+/* TODO:
+ * - pass `N' packets
+ * - pass socket - do packet_open only if socket is invalid
+ */
+int cnct_packet_loop(int engine, char *iface, int proto, char *rule, int (*callback)(unsigned char *, int, ssize_t))
+{
+	LOG_IN;
+	int r = 0;
+	r = sys_signal();
+	if (r) {
+		return r;
+	}
+	
+	if (!callback) {
+		callback = &cnct_packet_print;
+	}
+	
+	socket_t rs = cnct_packet_open(engine, iface, proto, rule);
+	/* TODO: cnct_packet_len */
+	
+	ssize_t rx = 0;
+	
+	/* TODO: fix this crap; implement cnct_iface_getlen */
+	size_t len = 0;
+#ifdef CNCT_SYS_BSD
+	if (ioctl(rs, BIOCGBLEN, &len) < 0) {
+		perror("ioctl");
+		return errno;
+	}
+#else
+	len = cnct_mtu;
+#endif
+	
+	DBG_INFO(printf("\nLEN == %zd\n", len);)
+	MALLOC_TYPE_SIZE(unsigned char, packet, len);
+	
+	while (!g_cnct_kill) {
+		(void) memset(packet, '\0', len);
+		DBG_INFO(printf("\nRX --->\n");)
+		rx = cnct_packet_recv(rs, packet, len);
+		DBG_INFO(printf("\nRX <---\n");)
+		if (rx == -1) {
+			perror("loop: recv");
+			printf("(%d)\n", errno);
+		} else if (rx == 0) {
+			printf("loop: client shutdown\n");
+		} else {
+			DBG_INFO(printf("\ncallback --->\n");)
+			(*callback)(packet, proto, rx);
+			DBG_INFO(printf("\ncallback <---\n");)
+		}
+	}
+	
+	LOG_OUT;
+	
+	return 0;
+}
+
+
 int cnct_packet_print(unsigned char *packet, int proto, ssize_t len)
 {
 	LOG_IN;

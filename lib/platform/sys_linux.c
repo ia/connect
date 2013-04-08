@@ -3,6 +3,9 @@
 #include "../connect.h"
 
 
+extern int g_cnct_kill;
+
+
 int sys_filter_bpf(socket_t sd)
 {
 	struct sock_filter bpf[] = { CNCT_BPF_PCKT };
@@ -28,6 +31,43 @@ int sys_filter_bind(char *iface)
 	/* TOOD: implement
 	bind(...)
 	*/
+	}
+	LOG_OUT;
+	return 0;
+}
+
+
+static void sys_signal_cb(int sig, siginfo_t *siginfo, void *context)
+{
+	UNUSED(context);
+	LOG_IN;
+	printf("\nSending PID: %ld, UID: %ld, SIG: %d\n", (long) siginfo->si_pid, (long) siginfo->si_uid, sig);
+	if (sig == SIGINT) {
+		g_cnct_kill = 1;
+	}
+	LOG_OUT;
+	return;
+}
+
+
+int sys_signal(void)
+{
+	LOG_IN;
+	struct sigaction act;
+	memset (&act, '\0', sizeof(act));
+	/* Use the sa_sigaction field because the handles has two additional parameters */
+	act.sa_sigaction = &sys_signal_cb;
+	/* The SA_SIGINFO flag tells sigaction() to use the sa_sigaction field, not sa_handler. */
+	act.sa_flags = SA_SIGINFO;
+	
+	if (sigaction(SIGTERM, &act, NULL) < 0) {
+		perror ("sigaction");
+		return 1;
+	}
+	
+	if (sigaction(SIGINT, &act, NULL) < 0) {
+		perror ("sigaction");
+		return 1;
 	}
 	LOG_OUT;
 	return 0;
