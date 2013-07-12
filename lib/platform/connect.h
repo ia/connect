@@ -59,6 +59,35 @@
 
 #define cnct_socket_raw() socket(CNCT_SOCKET_RAW)
 
+/* TODO: additional debug routine, e.g.: */
+#if 0
+#define NAME         "app"
+#define RET_CODE     ((!strcmp("main", __func__)) ? EXIT_FAILURE : -1)
+
+#define OLOG_I(fmt, ...)   fprintf(stdout, " ---- %s %s[%d] %-16s: %03d: "              fmt "\n", gettime(), NAME, getpid(), __func__, __LINE__,                         ## __VA_ARGS__)
+#define OLOG_E(fmt, ...)   fprintf(stderr, " ---- %s %s[%d] %-16s: %03d: ERR=%d (%s): " fmt "\n", gettime(), NAME, getpid(), __func__, __LINE__, errno, strerror(errno), ## __VA_ARGS__)
+
+#define SLOG_I(fmt, ...)   syslog(LOG_INFO, "%-16s: %03d: " fmt "\n",              __func__, __LINE__,                         ## __VA_ARGS__)
+#define SLOG_E(fmt, ...)   syslog(LOG_ERR , "%-16s: %03d: ERR=%d (%s): " fmt "\n", __func__, __LINE__, errno, strerror(errno), ## __VA_ARGS__)
+
+#define LOG_I(fmt, ...) OLOG_I(fmt, ##__VA_ARGS__); SLOG_I(fmt, ##__VA_ARGS__)
+#define LOG_E(fmt, ...) OLOG_E(fmt, ##__VA_ARGS__); SLOG_E(fmt, ##__VA_ARGS__)
+
+#define INFO(_e)  LOG_I("(%s) == %d", #_e, _e)
+#define EXIT(_e)  exit_log(_e); exit(_e)
+
+#define ERR_DO(   _e,          ... )  if ((_e))       { __VA_ARGS__                                                                      ; return RET_CODE; }
+#define ERR(      _e, _v           )  if ((_e) == _v) { LOG_E("((%s) == %d); return %d;"              , #_e, _v, RET_CODE               ); return RET_CODE; }
+#define ERR_M(    _e, _v, fmt, ... )  if ((_e) == _v) { LOG_E("((%s) == %d); return %d; /* " fmt " */", #_e, _v, RET_CODE, ##__VA_ARGS__); return RET_CODE; }
+#define ERR_ON(   _e               )  if ((_e))       { LOG_E("(%s); return %d;"                      , #_e,     RET_CODE               ); return RET_CODE; }
+#define ERR_ON_M( _e,     fmt, ... )  if ((_e)      ) { LOG_E("(%s); return %d; /* " fmt " */"        , #_e,     RET_CODE, ##__VA_ARGS__); return RET_CODE; }
+
+#define ERR_POSIX(   _e            )  ERR(   _e, -1                     )
+#define ERR_POSIX_M( _e, fmt, ...  )  ERR_M( _e, -1, fmt, ##__VA_ARGS__ )
+
+#define UNUSED(_x) ((_x) = (_x))
+#endif
+
 #ifndef RELEASE
 	
 	/* helper defines for debugging info output */
