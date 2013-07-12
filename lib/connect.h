@@ -7,17 +7,35 @@
 #define CNCT_SOCKET_DATASIZE 4096
 #define CNCT_SOCKET_BACKLOG  1024
 
+#define CNCT_SOCKET_OPT_REUSE      0x00000001
+#define CNCT_SOCKET_OPT_AUTOCLOSE  0x00000002
+
 /* *** connect library custom data types *** */
 
 /* general custom data type for easier usage of cnct_socket_* functions */
-
 struct cnct_socket_struct {
+	socket_t                 sd;
+	char                    *dhost;
+	char                    *dport;
+	char                    *shost;
+	char                    *sport;
+	int                      domain;
+	int                      type;
+	int                      protocol;
+	int                      flags;
+	int                      opts;
+	char                     addr[INET6_ADDRSTRLEN];
+	struct addrinfo         *node;
+	struct sockaddr_storage  client;
+};
+
+struct cnct_socket_struct2 {
 	/* socket_t - socket file descriptor data type */
 	socket_t          sd;
 	char             *host;
 	char             *port;
-	int               ipv;
-	int               type;
+	int               ipv; // domain
+	int               type; // type protocol
 	int               reuse;
 	int               autoclose;
 	int               flags;
