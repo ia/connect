@@ -2,9 +2,9 @@
 **THIS PROJECT IS NOT ABANDONDED BUT CURRENTLY ON HOLD AND SOURCE TREE IS NOT BUILDABLE**
 **HOWEVER THIS PROJECT AND ITS FILES MAY BE USED AS REFERENCE FOR CROSS PLATFORM NETWORK STUDY**
 
- connect - tiny cross-platform library for sockets routine  
+# connect - tiny cross-platform library for sockets routine  
 
-  Content  
+##  Content  
 	README   -  this file  
 	docs     -  documents and links  
 	junk     -  old legacy files  
@@ -14,7 +14,7 @@
 		winsock  -  Winsock sockets  
 
 
-  Source library content  
+##  Source library content  
 	connect.gm  -  GNU Make file for build on BSD/OSX/GNU/Linux  
 	connect.nm  -  MS NMake file for build on Windows  
 	src         -  demo code for using library  
@@ -27,7 +27,7 @@
 
 
 <section in progress>
-Headers tree:  
+## Headers tree:  
 
 
 lib/platform/api_bsd.h  -  header file for BSD sockets     : includes section only;  
@@ -38,7 +38,7 @@ lib/platform/api_nt.h   -  header file for Winsock sockets : includes section on
 			lib/socket/tcp.h  -  TCP-related socket routine; cross platform; includes connect header;  
 
 
-Direct header tree (legacy):  
+## Direct header tree (legacy):  
 
 
 connect app:  
