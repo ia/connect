@@ -26,7 +26,6 @@
 		netlink    -  netlink GNU/Linux sockets  
 
 
-<section in progress>
 ## Headers tree:  
 
 
