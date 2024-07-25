@@ -39,12 +39,12 @@
 
 ## Direct header tree (legacy)
 
-connect app:  
-  include platform/connect.h  <---  (api_bsd || api_nt) && routine  
-  include socket/tcp.h        <---  platform/connect.h  
-
-connect app (easy way):  
-connect app:  
-  include (lib)/connect.h  <---  platform/connect.h socket/tcp.h ...  
+	connect app:  
+	  include platform/connect.h  <---  (api_bsd || api_nt) && routine  
+	  include socket/tcp.h        <---  platform/connect.h  
+	
+	connect app (easy way):  
+	connect app:  
+	  include (lib)/connect.h  <---  platform/connect.h socket/tcp.h ...  
 
 
