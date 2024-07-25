@@ -29,12 +29,12 @@
 
 ## Headers tree
 
-lib/platform/api_bsd.h  -  header file for BSD sockets     : includes section only;  
-lib/platform/api_nt.h   -  header file for Winsock sockets : includes section only;  
-	lib/platform/connect.h  -  detect platfrom and then includes related header; defines cross platform routine macros; includes routine header;  
-			lib/routine.h  -  cross platform routine helper functions; body of header are divided by supported platforms;  
-			lib/routine.c  -  includes connect.h;  
-			lib/socket/tcp.h  -  TCP-related socket routine; cross platform; includes connect header;  
+	lib/platform/api_bsd.h  -  header file for BSD sockets     : includes section only;  
+	lib/platform/api_nt.h   -  header file for Winsock sockets : includes section only;  
+		lib/platform/connect.h  -  detect platfrom and then includes related header; defines cross platform routine macros; includes routine header;  
+				lib/routine.h  -  cross platform routine helper functions; body of header are divided by supported platforms;  
+				lib/routine.c  -  includes connect.h;  
+				lib/socket/tcp.h  -  TCP-related socket routine; cross platform; includes connect header;  
 
 
 ## Direct header tree (legacy)
