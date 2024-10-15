@@ -3,7 +3,7 @@
 
 /*
  * TODO:
- *  - move platform specific code to 
+ *
  *  - LOG_OUT_RET
  *  - each error processing
  *  - wrap server routine in macros/headers/defines/funcs
@@ -13,29 +13,6 @@
  *  - clean up release/debug output
  *
  */
-
-/* raw design api */
-	/*
-	sckt_addr = dhost, dport, shost, sport, type, proto,
-	sckt_opts = opts, autoclose, reuse
-	sckt;
-	sckt_creat(dhost, dport, type, proto, opts, autoclose, reuse)
-	sckt_create(addr, opts);
-	sckt_connect(sckt, addr, opts);
-	sckt_send(sckt, buf, len);
-	sckt_recv(sckt, buf, len);
-	sckt_delete(sckt);
-	*/
-	
-	/*
-	sckt_creat(dhost, dport, type, proto, opts, autoclose, reuse)
-	sckt_send
-	sckt_delete
-	
-	sckt_addr = sckt_create_addr()
-	sckt_opts = sckt_create_opts()
-	sckt = sckt_create(addr, opts)
-	*/
 
 /* for Windows platform - init WinSock layer */
 int cnct_start()
@@ -189,26 +166,23 @@ int cnct_sockdata_print(char *msg, int size, int len)
 }
 
 /* create socket struct routine */
-//cnct_socket_t *cnct_socket_create(char *dhost, char *dport, int domain, int type, int reuse, int autoclose, int flags)
-cnct_socket_t *cnct_socket_creat(char *dhost, char *dport, int domain, int type, int protocol, int flags, int opts)
+cnct_socket_t *cnct_socket_create(char *host, char *port, int ipv, int type, int reuse, int autoclose, int flags)
 {
 	LOG_IN;
 	
 	MALLOC_TYPE(cnct_socket_t, socket);
 	
-	IF_NOT_NULL(dhost, MALLOC_PNTR_SIZE(char, socket->dhost, strlen(dhost)); strcpy(socket->dhost, dhost));
-	IF_NOT_NULL(dport, MALLOC_PNTR_SIZE(char, socket->dport, strlen(dport)); strcpy(socket->dport, dport));
+	IF_NOT_NULL(host, MALLOC_PNTR_SIZE(char, socket->host, strlen(host)); strcpy(socket->host, host));
+	IF_NOT_NULL(port, MALLOC_PNTR_SIZE(char, socket->port, strlen(port)); strcpy(socket->port, port));
 	
 	socket->sd = -1;
 	
-	/* TODO: add verification of cross platform domain/type/protocol values */
-	SET_VALUE(socket->domain, domain, AF_INET6, AF_INET);
+	SET_VALUE(socket->ipv, ipv, AF_INET6, AF_INET);
 	SET_VALUE(socket->type, type, SOCK_DGRAM, SOCK_STREAM);
 	
-	socket->protocol = protocol;
+	socket->reuse = ((reuse == 0) ? 0 : 1);
+	socket->autoclose = ((autoclose == 0) ? 0 : 1);
 	socket->flags = flags;
-	socket->opts = opts;
-	
 	socket->node = NULL;
 	
 	LOG_OUT;
@@ -219,23 +193,21 @@ cnct_socket_t *cnct_socket_creat(char *dhost, char *dport, int domain, int type,
 /* clone socket struct routine */
 cnct_socket_t *cnct_socket_clone(cnct_socket_t *sckt_src)
 {
-	/* TODO: change to memcpy-like behavior */
 	LOG_IN;
 	
 	MALLOC_TYPE(cnct_socket_t, sckt_dst);
 	
-	IF_NOT_NULL(sckt_src->dhost, MALLOC_PNTR_SIZE(char, sckt_dst->dhost, strlen(sckt_src->dhost)); strcpy(sckt_dst->dhost, sckt_src->dhost));
-	IF_NOT_NULL(sckt_src->dport, MALLOC_PNTR_SIZE(char, sckt_dst->dport, strlen(sckt_src->dport)); strcpy(sckt_dst->dport, sckt_src->dport));
+	IF_NOT_NULL(sckt_src->host, MALLOC_PNTR_SIZE(char, sckt_dst->host, strlen(sckt_src->host)); strcpy(sckt_dst->host, sckt_src->host));
+	IF_NOT_NULL(sckt_src->port, MALLOC_PNTR_SIZE(char, sckt_dst->port, strlen(sckt_src->port)); strcpy(sckt_dst->port, sckt_src->port));
 	
 	IF_NOT_NULL(sckt_src->node, MALLOC_PNTR_TYPE(struct addrinfo, sckt_dst->node); memcpy(sckt_dst->node, sckt_src->node, sizeof(struct addrinfo)));
 	
 	sckt_dst->sd        = sckt_src->sd;
-	sckt_dst->domain    = sckt_src->domain;
+	sckt_dst->ipv       = sckt_src->ipv;
 	sckt_dst->type      = sckt_src->type;
-	sckt_dst->protocol  = sckt_src->protocol;
+	sckt_dst->reuse     = sckt_src->reuse;
+	sckt_dst->autoclose = sckt_src->autoclose;
 	sckt_dst->flags     = sckt_src->flags;
-	sckt_dst->opts      = sckt_src->opts;
-	/* FIXME: copy */
 	sckt_dst->node      = NULL;
 	
 	LOG_OUT;
@@ -249,9 +221,8 @@ int cnct_socket_delete(cnct_socket_t *socket)
 	LOG_IN;
 	
 	if (socket) {
-		/* TODO: clean up more clearly */
-		FREE_PNTR(socket->dhost);
-		FREE_PNTR(socket->dport);
+		FREE_PNTR(socket->host);
+		FREE_PNTR(socket->port);
 		FREE_PNTR(socket->node);
 		
 		//cnct_socket_close(socket->sd);
